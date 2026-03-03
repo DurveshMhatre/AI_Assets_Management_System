@@ -108,4 +108,19 @@ router.post('/:id/complete', async (req: AuthRequest, res: Response) => {
     }
 });
 
+// Delete maintenance log
+router.delete('/:id', async (req: AuthRequest, res: Response) => {
+    try {
+        const log = await prisma.maintenanceLog.findFirst({
+            where: { id: req.params.id, organizationId: req.user!.organizationId }
+        });
+        if (!log) return res.status(404).json({ success: false, error: 'Maintenance log not found' });
+
+        await prisma.maintenanceLog.delete({ where: { id: req.params.id } });
+        res.json({ success: true, message: 'Maintenance log deleted' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
 export default router;

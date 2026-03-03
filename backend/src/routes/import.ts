@@ -111,6 +111,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequ
 
         let processedRows = 0;
         let errorRows = 0;
+        let skippedRows = 0;
         const errors: any[] = [];
         let brandsCreated = 0, suppliersCreated = 0, branchesCreated = 0, assetsCreated = 0, typesCreated = 0;
 
@@ -130,6 +131,18 @@ router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequ
                     errors.push({ row: rowNum, error: 'Asset name is required' });
                     errorRows++;
                     continue;
+                }
+
+                // Duplicate check by serial number
+                const serialNum = getCellValue('serialNumber');
+                if (serialNum) {
+                    const existing = await prisma.asset.findFirst({
+                        where: { serialNumber: serialNum, organizationId: orgId }
+                    });
+                    if (existing) {
+                        skippedRows++;
+                        continue;
+                    }
                 }
 
                 // FindOrCreate Brand
@@ -236,6 +249,51 @@ router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequ
                     });
                 }
 
+                // Auto-generate depreciation schedule for newly imported asset
+                if (purchasePrice > 0 && assetTypeId) {
+                    try {
+                        const atype = await prisma.assetType.findUnique({ where: { id: assetTypeId } });
+                        if (atype) {
+                            const salvageValue = purchasePrice * (atype.salvageValuePercent / 100);
+                            const method = atype.depreciationMethod || 'STRAIGHT_LINE';
+                            let depAmount = 0;
+
+                            if (method === 'STRAIGHT_LINE') {
+                                depAmount = (purchasePrice - salvageValue) / (atype.usefulLifeYears * 12);
+                            } else if (method === 'DECLINING_BALANCE') {
+                                const rate = 1 - Math.pow(salvageValue / purchasePrice, 1 / atype.usefulLifeYears);
+                                depAmount = (purchasePrice * rate) / 12;
+                            } else {
+                                depAmount = (purchasePrice - salvageValue) / (atype.usefulLifeYears * 12);
+                            }
+
+                            const now = new Date();
+                            const closingValue = Math.max(salvageValue, purchasePrice - depAmount);
+                            const actualDep = purchasePrice - closingValue;
+
+                            await prisma.depreciationSchedule.create({
+                                data: {
+                                    assetId: asset.id,
+                                    year: now.getFullYear(),
+                                    month: now.getMonth() + 1,
+                                    openingValue: purchasePrice,
+                                    depreciationAmount: actualDep,
+                                    closingValue,
+                                    cumulativeDepreciation: actualDep,
+                                    method,
+                                    rate: method === 'DECLINING_BALANCE'
+                                        ? (1 - Math.pow(salvageValue / purchasePrice, 1 / atype.usefulLifeYears)) * 100
+                                        : (100 / atype.usefulLifeYears)
+                                }
+                            });
+
+                            await prisma.asset.update({ where: { id: asset.id }, data: { currentValue: closingValue } });
+                        }
+                    } catch (depError) {
+                        console.error(`Depreciation generation failed for asset ${asset.id}:`, depError);
+                    }
+                }
+
                 assetsCreated++;
                 processedRows++;
             } catch (rowError: any) {
@@ -263,6 +321,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequ
                 totalRows,
                 processedRows,
                 errorRows,
+                skippedRows,
                 assetsCreated,
                 brandsCreated,
                 suppliersCreated,

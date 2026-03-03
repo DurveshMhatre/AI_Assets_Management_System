@@ -177,6 +177,41 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     }
 });
 
+// Bulk delete assets
+router.post('/bulk-delete', async (req: AuthRequest, res: Response) => {
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ success: false, error: 'Invalid or empty IDs array' });
+        }
+
+        const orgId = req.user!.organizationId;
+
+        // Only delete assets that belong to this organization
+        const assetsToDelete = await prisma.asset.findMany({
+            where: { id: { in: ids }, organizationId: orgId },
+            select: { id: true }
+        });
+        const validIds = assetsToDelete.map(a => a.id);
+
+        if (validIds.length === 0) {
+            return res.status(404).json({ success: false, error: 'No matching assets found' });
+        }
+
+        // Delete related records first, then assets
+        await prisma.depreciationSchedule.deleteMany({ where: { assetId: { in: validIds } } });
+        await prisma.maintenanceLog.deleteMany({ where: { assetId: { in: validIds } } });
+        await prisma.inventoryRecord.deleteMany({ where: { assetId: { in: validIds } } });
+        await prisma.document.deleteMany({ where: { assetId: { in: validIds } } });
+        await prisma.asset.deleteMany({ where: { id: { in: validIds } } });
+
+        res.json({ success: true, message: `${validIds.length} assets deleted successfully`, deleted: validIds.length });
+    } catch (error) {
+        console.error('Bulk delete error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
 // Delete asset
 router.delete('/:id', async (req: AuthRequest, res: Response) => {
     try {

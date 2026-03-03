@@ -2,10 +2,151 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import ExcelJS from 'exceljs';
+import PDFDocument from 'pdfkit';
 
 const router = Router();
 const prisma = new PrismaClient();
 router.use(authenticate);
+
+// Power BI Export (Clean flat Excel)
+router.get('/export/powerbi', async (req: AuthRequest, res: Response) => {
+    try {
+        const orgId = req.user!.organizationId;
+        const assets = await prisma.asset.findMany({
+            where: { organizationId: orgId },
+            include: {
+                brand: { select: { name: true } },
+                supplier: { select: { companyName: true } },
+                branch: { select: { name: true } },
+                assetType: { select: { name: true } },
+                assignedTo: { select: { name: true } }
+            }
+        });
+
+        const workbook = new ExcelJS.Workbook();
+        const ws = workbook.addWorksheet('Assets');
+
+        ws.columns = [
+            { header: 'Asset Code', key: 'assetCode', width: 15 },
+            { header: 'Asset Name', key: 'name', width: 25 },
+            { header: 'Brand', key: 'brand', width: 15 },
+            { header: 'Supplier', key: 'supplier', width: 20 },
+            { header: 'Asset Type', key: 'assetType', width: 15 },
+            { header: 'Location', key: 'location', width: 15 },
+            { header: 'Branch', key: 'branch', width: 15 },
+            { header: 'Purchase Date', key: 'purchaseDate', width: 15 },
+            { header: 'Purchase Price', key: 'purchasePrice', width: 15 },
+            { header: 'Current Value', key: 'currentValue', width: 15 },
+            { header: 'Status', key: 'status', width: 12 },
+            { header: 'Serial Number', key: 'serialNumber', width: 18 },
+            { header: 'Assigned To', key: 'assignedTo', width: 15 },
+            { header: 'Warranty Expiry', key: 'warrantyExpiry', width: 15 },
+        ];
+
+        // Style header row
+        const headerRow = ws.getRow(1);
+        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+
+        assets.forEach(a => {
+            ws.addRow({
+                assetCode: a.assetCode,
+                name: a.name,
+                brand: a.brand?.name || 'N/A',
+                supplier: a.supplier?.companyName || 'N/A',
+                assetType: a.assetType?.name || 'N/A',
+                location: a.location || 'N/A',
+                branch: a.branch?.name || 'N/A',
+                purchaseDate: a.purchaseDate ? new Date(a.purchaseDate).toISOString().substring(0, 10) : 'N/A',
+                purchasePrice: a.purchasePrice,
+                currentValue: a.currentValue,
+                status: a.status,
+                serialNumber: a.serialNumber || 'N/A',
+                assignedTo: a.assignedTo?.name || 'N/A',
+                warrantyExpiry: a.warrantyExpiryDate ? new Date(a.warrantyExpiryDate).toISOString().substring(0, 10) : 'N/A',
+            });
+        });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="PowerBI_Asset_Data.xlsx"');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        console.error('Power BI export error:', error);
+        res.status(500).json({ success: false, error: 'Export failed' });
+    }
+});
+
+// PDF Export
+router.get('/export/pdf', async (req: AuthRequest, res: Response) => {
+    try {
+        const orgId = req.user!.organizationId;
+        const assets = await prisma.asset.findMany({
+            where: { organizationId: orgId },
+            include: {
+                brand: { select: { name: true } },
+                branch: { select: { name: true } },
+                assetType: { select: { name: true } }
+            },
+            orderBy: { assetCode: 'asc' }
+        });
+
+        const doc = new PDFDocument({ margin: 40, size: 'A4' });
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename="Asset_Report.pdf"');
+        doc.pipe(res);
+
+        // Title
+        doc.fontSize(20).font('Helvetica-Bold').text('Asset Report', { align: 'center' });
+        doc.fontSize(10).font('Helvetica').text(`Generated: ${new Date().toLocaleDateString()}`, { align: 'center' });
+        doc.moveDown(1.5);
+
+        // Summary
+        const totalValue = assets.reduce((sum, a) => sum + a.purchasePrice, 0);
+        const currentTotal = assets.reduce((sum, a) => sum + a.currentValue, 0);
+        doc.fontSize(11).font('Helvetica-Bold').text('Summary');
+        doc.fontSize(9).font('Helvetica');
+        doc.text(`Total Assets: ${assets.length}`);
+        doc.text(`Total Purchase Value: ₹${totalValue.toLocaleString()}`);
+        doc.text(`Total Current Value: ₹${currentTotal.toLocaleString()}`);
+        doc.moveDown();
+
+        // Table header
+        doc.fontSize(9).font('Helvetica-Bold');
+        const tableTop = doc.y;
+        doc.text('Code', 40, tableTop, { width: 70 });
+        doc.text('Name', 110, tableTop, { width: 120 });
+        doc.text('Type', 230, tableTop, { width: 70 });
+        doc.text('Location', 300, tableTop, { width: 80 });
+        doc.text('Status', 380, tableTop, { width: 60 });
+        doc.text('Value (₹)', 440, tableTop, { width: 80, align: 'right' });
+        doc.moveTo(40, tableTop + 14).lineTo(555, tableTop + 14).stroke();
+
+        // Table rows
+        doc.font('Helvetica').fontSize(8);
+        let y = tableTop + 20;
+
+        for (const a of assets) {
+            if (y > 750) {
+                doc.addPage();
+                y = 40;
+            }
+            doc.text(a.assetCode, 40, y, { width: 70 });
+            doc.text(a.name.substring(0, 20), 110, y, { width: 120 });
+            doc.text(a.assetType?.name || '—', 230, y, { width: 70 });
+            doc.text(a.branch?.name || '—', 300, y, { width: 80 });
+            doc.text(a.status, 380, y, { width: 60 });
+            doc.text(`₹${a.currentValue.toLocaleString()}`, 440, y, { width: 80, align: 'right' });
+            y += 16;
+        }
+
+        doc.end();
+    } catch (error) {
+        console.error('PDF export error:', error);
+        res.status(500).json({ success: false, error: 'Export failed' });
+    }
+});
 
 // Get report data
 router.get('/:type', async (req: AuthRequest, res: Response) => {

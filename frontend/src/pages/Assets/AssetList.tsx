@@ -173,8 +173,8 @@ export default function AssetList() {
         }
         if (!window.confirm(`Delete ${selectedIds.length} selected assets? This cannot be undone.`)) return;
         try {
-            await Promise.all(selectedIds.map(id => api.delete(`/assets/${id}`)));
-            toast.success('Selected assets deleted');
+            await api.post('/assets/bulk-delete', { ids: selectedIds });
+            toast.success(`${selectedIds.length} assets deleted`);
             setSelectedIds([]);
             queryClient.invalidateQueries({ queryKey: ['assets'] });
         } catch (e: any) {
@@ -202,11 +202,40 @@ export default function AssetList() {
             }
             return;
         }
+        if (format === 'pdf') {
+            try {
+                const res = await api.get('/reports/export/pdf', { responseType: 'blob' });
+                const url = URL.createObjectURL(res.data);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Asset_Report.pdf';
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success('Exported to PDF');
+            } catch {
+                toast.error('PDF export failed');
+            }
+            return;
+        }
+        if (format === 'pbix') {
+            try {
+                const res = await api.get('/reports/export/powerbi', { responseType: 'blob' });
+                const url = URL.createObjectURL(res.data);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'PowerBI_Asset_Data.xlsx';
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success('Exported for Power BI');
+            } catch {
+                toast.error('Power BI export failed');
+            }
+            return;
+        }
         if (format === 'print') {
             window.print();
             return;
         }
-        toast.error(format.toUpperCase() + ' export is not available yet. Please use Excel or Print.');
     };
 
     return (
