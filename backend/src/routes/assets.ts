@@ -13,6 +13,73 @@ const generateAssetCode = async (orgId: string): Promise<string> => {
     return `AST-${String(count + 1).padStart(5, '0')}`;
 };
 
+// Auto-generate full depreciation schedule for an asset
+async function generateDepreciationSchedule(assetId: string) {
+    const asset = await prisma.asset.findUnique({
+        where: { id: assetId },
+        include: { assetType: true }
+    });
+    if (!asset || !asset.purchasePrice || !asset.purchaseDate || !asset.assetType) return;
+
+    const { purchasePrice, purchaseDate, assetType } = asset;
+    const usefulLifeYears = assetType.usefulLifeYears || 5;
+    const salvageValue = purchasePrice * ((assetType.salvageValuePercent || 10) / 100);
+    const method = assetType.depreciationMethod || 'STRAIGHT_LINE';
+    const months = usefulLifeYears * 12;
+
+    // Clear old schedule
+    await prisma.depreciationSchedule.deleteMany({ where: { assetId } });
+
+    const dbRate = method === 'DECLINING_BALANCE'
+        ? 1 - Math.pow(Math.max(salvageValue, 1) / purchasePrice, 1 / usefulLifeYears)
+        : 0;
+
+    let currentBV = purchasePrice;
+    let cumDep = 0;
+    const records = [];
+
+    for (let m = 0; m < months; m++) {
+        const startDate = new Date(purchaseDate);
+        startDate.setMonth(startDate.getMonth() + m);
+        const year = startDate.getFullYear();
+        const month = startDate.getMonth() + 1;
+
+        let dep = 0;
+        if (method === 'STRAIGHT_LINE') {
+            dep = (purchasePrice - salvageValue) / months;
+        } else if (method === 'DECLINING_BALANCE') {
+            dep = currentBV * (dbRate / 12);
+        } else {
+            dep = (purchasePrice - salvageValue) / months;
+        }
+
+        const opening = currentBV;
+        const closing = Math.max(parseFloat((currentBV - dep).toFixed(2)), salvageValue);
+        const actualDep = parseFloat((opening - closing).toFixed(2));
+        cumDep = parseFloat((cumDep + actualDep).toFixed(2));
+        currentBV = closing;
+
+        records.push({
+            assetId,
+            year,
+            month,
+            openingValue: parseFloat(opening.toFixed(2)),
+            depreciationAmount: actualDep,
+            closingValue: closing,
+            cumulativeDepreciation: cumDep,
+            method,
+            rate: method === 'DECLINING_BALANCE' ? dbRate * 100 : 100 / usefulLifeYears,
+        });
+    }
+
+    await prisma.depreciationSchedule.createMany({ data: records });
+    // Update currentValue to closing value at end of schedule
+    await prisma.asset.update({
+        where: { id: assetId },
+        data: { currentValue: records[records.length - 1]?.closingValue ?? purchasePrice }
+    });
+}
+
 // List assets (paginated, filterable, sortable)
 router.get('/', async (req: AuthRequest, res: Response) => {
     try {
@@ -45,7 +112,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
             prisma.asset.findMany({
                 where,
                 include: {
-                    branch: { select: { id: true, name: true } },
+                    branch: { select: { id: true, name: true, city: true, pincode: true } },
                     brand: { select: { id: true, name: true } },
                     supplier: { select: { id: true, companyName: true } },
                     assetType: { select: { id: true, name: true } },
@@ -132,6 +199,11 @@ router.post('/', async (req: AuthRequest, res: Response) => {
             include: { branch: true, brand: true, supplier: true, assetType: true }
         });
 
+        // Auto-generate depreciation schedule if we have price + assetType
+        if (asset.purchasePrice > 0 && asset.assetTypeId) {
+            try { await generateDepreciationSchedule(asset.id); } catch (e) { console.error('Dep gen error:', e); }
+        }
+
         res.status(201).json({ success: true, data: asset });
     } catch (error) {
         console.error('Create asset error:', error);
@@ -170,6 +242,12 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
             data: updateData,
             include: { branch: true, brand: true, supplier: true, assetType: true, assignedTo: { select: { id: true, name: true } } }
         });
+
+        // Regenerate depreciation if financial fields changed
+        const FINANCIAL = ['purchasePrice', 'purchaseDate', 'assetTypeId'];
+        if (FINANCIAL.some(f => req.body.hasOwnProperty(f)) && asset.purchasePrice > 0 && asset.assetTypeId) {
+            try { await generateDepreciationSchedule(asset.id); } catch (e) { console.error('Dep gen error:', e); }
+        }
 
         res.json({ success: true, data: asset });
     } catch (error) {

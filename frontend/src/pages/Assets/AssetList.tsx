@@ -394,7 +394,12 @@ export default function AssetList() {
                                         </td>
                                         <td className="px-5 py-3.5 text-sm text-slate-600 font-mono cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>{asset.assetCode}</td>
                                         <td className="px-5 py-3.5 text-sm text-slate-600 cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>{asset.assetType?.name || '—'}</td>
-                                        <td className="px-5 py-3.5 text-sm text-slate-600 cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>{asset.branch?.name || '—'}</td>
+                                        <td className="px-5 py-3.5 cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>
+                                            <p className="text-sm font-medium text-slate-700">{(asset as any).branch?.name || (asset as any).location || '—'}</p>
+                                            {(asset as any).branch?.city && (
+                                                <p className="text-xs text-slate-400">{(asset as any).branch.city}</p>
+                                            )}
+                                        </td>
                                         <td className="px-5 py-3.5">
                                             <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[asset.status] || 'bg-slate-100 text-slate-600'}`}>
                                                 {asset.status.replace('_', ' ')}
@@ -461,7 +466,12 @@ export default function AssetList() {
                             <h3 className="text-sm font-semibold text-slate-800 mb-1 truncate">{asset.name}</h3>
                             <p className="text-xs text-slate-400 mb-3">{asset.assetCode} • {asset.brand?.name || '—'}</p>
                             <div className="flex justify-between items-center text-xs">
-                                <span className="text-slate-500">{asset.branch?.name || '—'}</span>
+                                <div>
+                                    <span className="text-slate-500">{(asset as any).branch?.name || (asset as any).location || '—'}</span>
+                                    {(asset as any).branch?.city && (
+                                        <span className="text-slate-400 block">{(asset as any).branch.city}</span>
+                                    )}
+                                </div>
                                 <span className="font-semibold text-slate-800">₹{asset.currentValue.toLocaleString()}</span>
                             </div>
                         </div>

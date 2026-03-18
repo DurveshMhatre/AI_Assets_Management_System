@@ -34,19 +34,22 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 router.post('/', async (req: AuthRequest, res: Response) => {
     try {
         const data = req.body;
+        if (!data.assetId || !data.type || !data.scheduledDate) {
+            return res.status(400).json({ success: false, error: 'assetId, type, and scheduledDate are required' });
+        }
         const log = await prisma.maintenanceLog.create({
             data: {
                 assetId: data.assetId,
                 type: data.type || 'PREVENTIVE',
                 scheduledDate: new Date(data.scheduledDate),
-                description: data.description,
+                description: data.description || null,
                 cost: parseFloat(data.cost) || 0,
                 technicianId: data.technicianId || null,
                 status: 'PENDING',
                 organizationId: req.user!.organizationId
             },
             include: {
-                asset: { select: { name: true } },
+                asset: { select: { name: true, assetCode: true, serialNumber: true } },
                 technician: { select: { name: true } }
             }
         });
@@ -59,6 +62,11 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 // Update maintenance log
 router.put('/:id', async (req: AuthRequest, res: Response) => {
     try {
+        const existing = await prisma.maintenanceLog.findFirst({
+            where: { id: req.params.id, organizationId: req.user!.organizationId }
+        });
+        if (!existing) return res.status(404).json({ success: false, error: 'Maintenance log not found' });
+
         const data = req.body;
         const updateData: any = {};
         if (data.type) updateData.type = data.type;
@@ -83,23 +91,27 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
 // Complete maintenance
 router.post('/:id/complete', async (req: AuthRequest, res: Response) => {
     try {
-        const { cost, notes, nextMaintenanceDate } = req.body;
+        const existing = await prisma.maintenanceLog.findFirst({
+            where: { id: req.params.id, organizationId: req.user!.organizationId }
+        });
+        if (!existing) return res.status(404).json({ success: false, error: 'Maintenance log not found' });
+
+        const { actualCost, completionNotes, nextMaintenanceDate } = req.body;
+        // Build updated description: keep original + append completion notes
+        const updatedDescription = completionNotes
+            ? `${existing.description ? existing.description + '\n\n' : ''}✅ Completion Notes: ${completionNotes}`
+            : existing.description;
+
         const log = await prisma.maintenanceLog.update({
             where: { id: req.params.id },
             data: {
                 status: 'COMPLETED',
                 completedDate: new Date(),
-                cost: cost ? parseFloat(cost) : undefined,
-                description: notes || undefined,
+                cost: actualCost ? parseFloat(actualCost) : existing.cost,
+                description: updatedDescription,
                 nextMaintenanceDate: nextMaintenanceDate ? new Date(nextMaintenanceDate) : null
             },
-            include: { asset: { select: { name: true } } }
-        });
-
-        // Update asset status back to ACTIVE
-        await prisma.asset.update({
-            where: { id: log.assetId },
-            data: { status: 'ACTIVE' }
+            include: { asset: { select: { name: true, assetCode: true } } }
         });
 
         res.json({ success: true, data: log });

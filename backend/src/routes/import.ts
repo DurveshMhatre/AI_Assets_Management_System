@@ -49,6 +49,58 @@ const columnMappings = [
     { field: 'depreciationMethod', aliases: ['Depreciation Method', 'Dep Method'] },
 ];
 
+// Exact-dictionary for mapping wizard
+const EXACT_DICTIONARY: Record<string, string[]> = {
+    assetName: ['asset name', 'name', 'asset', 'item name', 'item'],
+    description: ['description', 'details', 'remarks', 'notes'],
+    brand: ['brand', 'brand name', 'manufacturer', 'make'],
+    supplier: ['supplier', 'supplier name', 'vendor', 'vendor name'],
+    supplierEmail: ['supplier email', 'vendor email', 'email', 'contact email'],
+    supplierPhone: ['supplier phone', 'phone', 'contact number', 'mobile'],
+    supplierAddress: ['supplier address', 'vendor address', 'address'],
+    city: ['city', 'supplier city', 'location city'],
+    pincode: ['pincode', 'pin code', 'zip', 'zip code', 'postal code'],
+    branch: ['branch', 'location', 'sub location', 'department', 'site', 'office'],
+    assetType: ['asset type', 'type', 'category', 'classification'],
+    serialNumber: ['serial number', 'serial no', 'serial', 's/n', 'sn'],
+    purchaseDate: ['purchase date', 'buy date', 'acquisition date', 'date of purchase', 'date'],
+    purchasePrice: ['purchase price', 'cost', 'price', 'amount', 'value', 'cost price'],
+    quantity: ['quantity', 'qty', 'count', 'units', 'stock'],
+    status: ['status', 'condition', 'state', 'asset status'],
+    warrantyExpiry: ['warranty expiry', 'warranty', 'warranty date', 'expiry date'],
+    usefulLife: ['useful life', 'life years', 'asset life', 'depreciation years'],
+    salvageValue: ['salvage value', 'residual value', 'scrap value'],
+    depMethod: ['depreciation method', 'dep method', 'method'],
+    assignedTo: ['assigned to', 'employee', 'owner', 'user', 'in charge'],
+    companyPolicy: ['company policy', 'policy', 'policy notes'],
+};
+
+function generateSmartMapping(excelHeaders: string[]) {
+    const norm = (s: string) => String(s || '').toLowerCase().trim()
+        .replace(/[_\-\/\\]+/g, ' ').replace(/\s+/g, ' ');
+    const normHeaders = excelHeaders.map(norm);
+    const matched: Record<string, { excelHeader: string; confidence: string }> = {};
+    const usedExcel = new Set<string>();
+
+    for (const [field, keywords] of Object.entries(EXACT_DICTIONARY)) {
+        for (const kw of keywords) {
+            const idx = normHeaders.indexOf(norm(kw));
+            if (idx !== -1 && !usedExcel.has(excelHeaders[idx])) {
+                matched[field] = { excelHeader: excelHeaders[idx], confidence: 'EXACT' };
+                usedExcel.add(excelHeaders[idx]);
+                break;
+            }
+        }
+    }
+    return {
+        matched,
+        unmappedSystemFields: Object.keys(EXACT_DICTIONARY).filter(f => !matched[f]),
+        unmatchedExcelColumns: excelHeaders.filter(h => !usedExcel.has(h)),
+        missingRequired: ['assetName', 'purchasePrice', 'purchaseDate'].filter(f => !matched[f]),
+        allExcelHeaders: excelHeaders,
+    };
+}
+
 // Fuzzy match column headers
 function mapColumns(headers: string[]): Record<string, string> {
     const allAliases = columnMappings.flatMap(m => m.aliases.map(a => ({ field: m.field, alias: a })));
@@ -444,6 +496,48 @@ router.get('/download', async (_req, res: Response) => {
     } catch (error) {
         console.error('Template download error:', error);
         res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// Upload-preview: smart mapping for MappingWizard
+router.post('/upload-preview', authenticate, upload.single('file'), async (req: AuthRequest, res: Response) => {
+    try {
+        if (!req.file) return res.status(400).json({ success: false, error: 'No file' });
+
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.readFile(req.file.path);
+        const ws = workbook.worksheets[0];
+
+        const headers: string[] = [];
+        ws.getRow(1).eachCell({ includeEmpty: false }, (cell, colNum) => {
+            headers[colNum - 1] = String(cell.value || '').trim();
+        });
+
+        const previewRows: any[] = [];
+        for (let r = 2; r <= Math.min(4, ws.rowCount); r++) {
+            const row = ws.getRow(r);
+            const rowData: Record<string, any> = {};
+            row.eachCell({ includeEmpty: true }, (cell, colNum) => {
+                if (headers[colNum - 1]) rowData[headers[colNum - 1]] = cell.value;
+            });
+            previewRows.push(rowData);
+        }
+
+        const mapping = generateSmartMapping(headers);
+
+        res.json({
+            success: true,
+            data: {
+                filePath: req.file.path,
+                fileName: req.file.originalname,
+                totalRows: ws.rowCount - 1,
+                headers,
+                previewRows,
+                mapping,
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Preview failed' });
     }
 });
 

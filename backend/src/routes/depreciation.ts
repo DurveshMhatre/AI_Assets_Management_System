@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import ExcelJS from 'exceljs';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -85,6 +86,107 @@ router.get('/:assetId/schedule', async (req: AuthRequest, res: Response) => {
         });
         res.json({ success: true, data: { asset, schedules } });
     } catch (error) {
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// Per-asset depreciation summary (for AssetDetail page)
+router.get('/:assetId/asset-summary', async (req: AuthRequest, res: Response) => {
+    try {
+        const asset = await prisma.asset.findFirst({
+            where: { id: req.params.assetId, organizationId: req.user!.organizationId },
+            include: { assetType: true }
+        });
+        if (!asset) return res.status(404).json({ success: false, error: 'Asset not found' });
+
+        const schedules = await prisma.depreciationSchedule.findMany({
+            where: { assetId: req.params.assetId },
+            orderBy: [{ year: 'asc' }, { month: 'asc' }]
+        });
+
+        const today = new Date();
+        const todayYear = today.getFullYear();
+        const todayMonth = today.getMonth() + 1;
+
+        const past = schedules.filter(s =>
+            s.year < todayYear || (s.year === todayYear && s.month <= todayMonth)
+        );
+        const latest = past[past.length - 1];
+        const currentBV = latest?.closingValue ?? asset.purchasePrice;
+        const totalDep = parseFloat((asset.purchasePrice - currentBV).toFixed(2));
+        const pct = asset.purchasePrice > 0
+            ? parseFloat(((totalDep / asset.purchasePrice) * 100).toFixed(1))
+            : 0;
+
+        const last = schedules[schedules.length - 1];
+        const remainingMonths = last
+            ? Math.max(0, (last.year - todayYear) * 12 + (last.month - todayMonth))
+            : 0;
+
+        res.json({
+            success: true,
+            data: {
+                originalCost: asset.purchasePrice,
+                currentBookValue: currentBV,
+                totalDepreciated: totalDep,
+                percentDepreciated: pct,
+                salvageValue: asset.purchasePrice * ((asset.assetType?.salvageValuePercent ?? 10) / 100),
+                remainingMonths,
+                method: latest?.method ?? 'STRAIGHT_LINE',
+                schedule: schedules
+            }
+        });
+    } catch (error) {
+        console.error('Asset dep summary error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// Export depreciation schedule to Excel
+router.get('/:assetId/export', async (req: AuthRequest, res: Response) => {
+    try {
+        const asset = await prisma.asset.findFirst({
+            where: { id: req.params.assetId, organizationId: req.user!.organizationId }
+        });
+        if (!asset) return res.status(404).json({ success: false, error: 'Asset not found' });
+
+        const schedules = await prisma.depreciationSchedule.findMany({
+            where: { assetId: req.params.assetId },
+            orderBy: [{ year: 'asc' }, { month: 'asc' }]
+        });
+
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('Depreciation Schedule');
+        ws.columns = [
+            { header: '#', key: 'idx', width: 6 },
+            { header: 'Period', key: 'period', width: 14 },
+            { header: 'Opening Value', key: 'openingValue', width: 18 },
+            { header: 'Depreciation', key: 'depreciationAmount', width: 18 },
+            { header: 'Closing Value', key: 'closingValue', width: 18 },
+            { header: 'Cumulative', key: 'cumulativeDepreciation', width: 18 },
+            { header: 'Method', key: 'method', width: 22 },
+        ];
+        ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+
+        schedules.forEach((row, i) => {
+            ws.addRow({
+                idx: i + 1,
+                period: `${row.year}-${String(row.month).padStart(2, '0')}`,
+                openingValue: row.openingValue,
+                depreciationAmount: row.depreciationAmount,
+                closingValue: row.closingValue,
+                cumulativeDepreciation: row.cumulativeDepreciation,
+                method: row.method
+            });
+        });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${asset.name}_depreciation.xlsx"`);
+        await wb.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        console.error('Dep export error:', error);
         res.status(500).json({ success: false, error: 'Server error' });
     }
 });
