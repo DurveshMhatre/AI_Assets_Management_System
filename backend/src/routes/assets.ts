@@ -49,6 +49,12 @@ async function generateDepreciationSchedule(assetId: string) {
             dep = (purchasePrice - salvageValue) / months;
         } else if (method === 'DECLINING_BALANCE') {
             dep = currentBV * (dbRate / 12);
+        } else if (method === 'SUM_OF_YEARS_DIGITS') {
+            const syd = (usefulLifeYears * (usefulLifeYears + 1)) / 2;
+            const yearIndex = Math.floor(m / 12);
+            const remainingLife = usefulLifeYears - yearIndex;
+            const annualDep = (remainingLife / syd) * (purchasePrice - salvageValue);
+            dep = annualDep / 12;
         } else {
             dep = (purchasePrice - salvageValue) / months;
         }
@@ -252,6 +258,131 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
         res.json({ success: true, data: asset });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// ── POST /recalculate-depreciation — Recalculate with different method ───────
+router.post('/:id/recalculate-depreciation', async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { method } = req.body;
+        const orgId = req.user!.organizationId;
+
+        const asset = await prisma.asset.findFirst({
+            where: { id, organizationId: orgId },
+            include: { assetType: true }
+        });
+
+        if (!asset) return res.status(404).json({ success: false, error: 'Asset not found' });
+        if (!asset.purchasePrice || !asset.purchaseDate || !asset.assetType) {
+            return res.status(400).json({ success: false, error: 'Asset missing price, date, or type for depreciation' });
+        }
+
+        // Temporarily update the asset type's method if different
+        const originalMethod = asset.assetType.depreciationMethod;
+        if (method && method !== originalMethod) {
+            await prisma.assetType.update({
+                where: { id: asset.assetType.id },
+                data: { depreciationMethod: method }
+            });
+        }
+
+        // Regenerate the full schedule
+        await generateDepreciationSchedule(id);
+
+        // Restore original method if we changed it
+        if (method && method !== originalMethod) {
+            await prisma.assetType.update({
+                where: { id: asset.assetType.id },
+                data: { depreciationMethod: originalMethod }
+            });
+        }
+
+        // Fetch the refreshed data
+        const updatedAsset = await prisma.asset.findUnique({
+            where: { id },
+            include: {
+                assetType: true,
+                depreciationSchedule: { orderBy: [{ year: 'asc' }, { month: 'asc' }] }
+            }
+        });
+
+        res.json({
+            success: true,
+            message: 'Depreciation recalculated successfully',
+            data: {
+                method: method || originalMethod,
+                scheduleCount: updatedAsset?.depreciationSchedule.length || 0,
+                currentValue: updatedAsset?.currentValue || 0,
+            }
+        });
+    } catch (error) {
+        console.error('Error recalculating depreciation:', error);
+        res.status(500).json({ success: false, error: 'Failed to recalculate depreciation' });
+    }
+});
+
+// ── GET /depreciation-chart — Chart-ready depreciation data ──────────────────
+router.get('/:id/depreciation-chart', async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const orgId = req.user!.organizationId;
+
+        const asset = await prisma.asset.findFirst({
+            where: { id, organizationId: orgId },
+            include: {
+                assetType: true,
+                depreciationSchedule: { orderBy: [{ year: 'asc' }, { month: 'asc' }] }
+            }
+        });
+
+        if (!asset) return res.status(404).json({ success: false, error: 'Asset not found' });
+
+        const schedule = asset.depreciationSchedule;
+        if (schedule.length === 0) {
+            return res.status(404).json({ success: false, error: 'No depreciation data found' });
+        }
+
+        const salvageValue = asset.purchasePrice * ((asset.assetType?.salvageValuePercent ?? 10) / 100);
+
+        // Calculate remaining useful life
+        const today = new Date();
+        const purchaseDate = asset.purchaseDate ? new Date(asset.purchaseDate) : today;
+        const monthsElapsed = (today.getFullYear() - purchaseDate.getFullYear()) * 12 +
+                              (today.getMonth() - purchaseDate.getMonth());
+        const totalMonths = (asset.assetType?.usefulLifeYears ?? 5) * 12;
+        const remainingMonths = Math.max(0, totalMonths - monthsElapsed);
+
+        const lastEntry = schedule[schedule.length - 1];
+        const currentBookValue = lastEntry?.closingValue ?? asset.currentValue;
+        const totalDepreciated = asset.purchasePrice - currentBookValue;
+
+        res.json({
+            success: true,
+            data: {
+                labels: schedule.map(s => `${String(s.month).padStart(2, '0')}/${s.year}`),
+                bookValues: schedule.map(s => s.closingValue),
+                accumulatedDepreciation: schedule.map(s => s.cumulativeDepreciation),
+                monthlyDepreciation: schedule.map(s => s.depreciationAmount),
+                meta: {
+                    purchasePrice: asset.purchasePrice,
+                    salvageValue,
+                    usefulLifeYears: asset.assetType?.usefulLifeYears ?? 5,
+                    method: schedule[0]?.method || 'STRAIGHT_LINE',
+                    currentBookValue,
+                    totalDepreciated,
+                    depreciationPercentage: asset.purchasePrice > 0
+                        ? Math.round((totalDepreciated / asset.purchasePrice) * 100)
+                        : 0,
+                    remainingMonths,
+                    remainingYears: Math.round(remainingMonths / 12 * 10) / 10,
+                    isFullyDepreciated: currentBookValue <= salvageValue,
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching depreciation chart:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch depreciation data' });
     }
 });
 

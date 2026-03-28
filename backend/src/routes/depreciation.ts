@@ -229,6 +229,14 @@ router.post('/run-monthly', async (req: AuthRequest, res: Response) => {
             } else if (method === 'DECLINING_BALANCE') {
                 const rate = 1 - Math.pow(salvageValue / asset.purchasePrice, 1 / asset.assetType.usefulLifeYears);
                 depAmount = (openingValue * rate) / 12;
+            } else if (method === 'SUM_OF_YEARS_DIGITS') {
+                const usefulYears = asset.assetType.usefulLifeYears;
+                const syd = (usefulYears * (usefulYears + 1)) / 2;
+                const totalDep = latestDep?.cumulativeDepreciation || 0;
+                const yearsPassed = Math.floor(totalDep / ((asset.purchasePrice - salvageValue) / usefulYears));
+                const remainingLife = Math.max(1, usefulYears - yearsPassed);
+                const annualDep = (remainingLife / syd) * (asset.purchasePrice - salvageValue);
+                depAmount = annualDep / 12;
             } else {
                 depAmount = (asset.purchasePrice - salvageValue) / (asset.assetType.usefulLifeYears * 12);
             }

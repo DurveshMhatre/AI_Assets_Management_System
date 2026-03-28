@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, HelpCircle, FileSpreadsheet } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, HelpCircle, FileSpreadsheet, XCircle, Brain, RefreshCw } from 'lucide-react';
+import api from '../../api/client';
 
 // Field labels for display
 const FIELD_LABELS: Record<string, string> = {
@@ -29,12 +30,21 @@ const FIELD_LABELS: Record<string, string> = {
 
 const REQUIRED_FIELDS = ['assetName', 'purchasePrice', 'purchaseDate'];
 
+const NARROW_VISION_FIELDS = ['assetName', 'serialNumber', 'purchasePrice', 'purchaseDate'];
+
+interface MappingSuggestion {
+    excelHeader: string;
+    confidence: number | string;
+}
+
 interface MappingResult {
-    matched: Record<string, { excelHeader: string; confidence: string }>;
+    matched: Record<string, MappingSuggestion>;
     unmappedSystemFields: string[];
     unmatchedExcelColumns: string[];
     missingRequired: string[];
     allExcelHeaders: string[];
+    averageConfidence?: number;
+    requiresManualReview?: boolean;
 }
 
 interface UploadResult {
@@ -46,6 +56,13 @@ interface UploadResult {
     mapping: MappingResult;
 }
 
+interface OrgStats {
+    totalFeedbacks: number;
+    correctMappings: number;
+    avgConfidence: number;
+    accuracyRate: number;
+}
+
 interface Props {
     isOpen: boolean;
     onClose: () => void;
@@ -53,10 +70,15 @@ interface Props {
     onConfirm: (data: { finalMapping: Record<string, string>; filePath?: string }) => void;
 }
 
+function getConfidenceValue(conf: number | string): number {
+    if (typeof conf === 'number') return conf;
+    if (conf === 'EXACT') return 0.95;
+    return 0;
+}
+
 export default function MappingWizard({ isOpen, onClose, uploadResult, onConfirm }: Props) {
     const { headers, previewRows, totalRows, fileName, filePath, mapping } = uploadResult;
 
-    // State for selects: fieldName → excelHeader (or '' for unset/skip)
     const [userMapping, setUserMapping] = useState<Record<string, string>>(() => {
         const initial: Record<string, string> = {};
         for (const [field, info] of Object.entries(mapping.matched)) {
@@ -64,6 +86,9 @@ export default function MappingWizard({ isOpen, onClose, uploadResult, onConfirm
         }
         return initial;
     });
+
+    const [feedback, setFeedback] = useState<Record<string, { wasCorrect: boolean }>>({});
+    const [orgStats, setOrgStats] = useState<OrgStats | null>(null);
 
     // Unrecognized: ignore toggles
     const [ignored, setIgnored] = useState<Set<string>>(new Set());
@@ -73,32 +98,89 @@ export default function MappingWizard({ isOpen, onClose, uploadResult, onConfirm
     const [autoExpanded, setAutoExpanded] = useState(true);
     const [unrecogExpanded, setUnrecogExpanded] = useState(false);
 
+    // Load org stats
+    useEffect(() => {
+        if (isOpen) {
+            api.get('/import/stats')
+                .then(r => setOrgStats(r.data.data))
+                .catch(() => {});
+        }
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const handleFieldSelect = (field: string, value: string) => {
         setUserMapping(prev => ({ ...prev, [field]: value }));
     };
 
+    const handleFeedbackToggle = (field: string, wasCorrect: boolean) => {
+        setFeedback(prev => ({ ...prev, [field]: { wasCorrect } }));
+    };
+
     const matchedCount = Object.keys(mapping.matched).length;
     const manualCount = mapping.unmappedSystemFields.length;
-    const ignoredCount = ignored.size + mapping.unmatchedExcelColumns.filter(h => !unrecognizedAssign[h] && !ignored.has(h)).length;
 
-    const handleConfirm = () => {
-        // finalMapping: field → excelHeader for all selected mappings
+    const handleConfirm = async () => {
         const finalMapping: Record<string, string> = {};
 
-        // from auto-detected (user may have changed)
         for (const [field, val] of Object.entries(userMapping)) {
             if (val && val !== '__skip__') finalMapping[field] = val;
         }
 
-        // from unrecognized column assignments (reversed: colHeader → systemField)
         for (const [col, sysField] of Object.entries(unrecognizedAssign)) {
             if (sysField && !ignored.has(col)) finalMapping[sysField] = col;
         }
 
+        // Send feedback for learning
+        const feedbackMappings = Object.entries(feedback).map(([field, fb]) => ({
+            excelHeader: userMapping[field] || mapping.matched[field]?.excelHeader || '',
+            systemField: field,
+            wasCorrect: fb.wasCorrect,
+            confidenceScore: mapping.matched[field] ? getConfidenceValue(mapping.matched[field].confidence) : 0,
+        })).filter(m => m.excelHeader);
+
+        if (feedbackMappings.length > 0) {
+            try {
+                await api.post('/import/feedback', { mappings: feedbackMappings });
+            } catch (e) {
+                console.error('Feedback submission failed:', e);
+            }
+        }
+
         onConfirm({ finalMapping, filePath });
     };
+
+    const getConfidenceBadge = (field: string) => {
+        const info = mapping.matched[field];
+        if (!info) return null;
+
+        const score = getConfidenceValue(info.confidence);
+        const pct = Math.round(score * 100);
+
+        if (score >= 0.8) {
+            return (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                    <CheckCircle2 className="w-3 h-3" />{pct}%
+                </span>
+            );
+        } else if (score >= 0.5) {
+            return (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                    <AlertTriangle className="w-3 h-3" />{pct}%
+                </span>
+            );
+        } else {
+            return (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                    <XCircle className="w-3 h-3" />{pct}%
+                </span>
+            );
+        }
+    };
+
+    const avgConf = mapping.averageConfidence
+        ? Math.round(mapping.averageConfidence * 100)
+        : null;
 
     const SectionSelect = ({ field, value }: { field: string; value: string }) => (
         <select
@@ -120,17 +202,53 @@ export default function MappingWizard({ isOpen, onClose, uploadResult, onConfirm
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-2xl">
                     <div className="flex items-center gap-3">
-                        <FileSpreadsheet className="w-6 h-6 text-indigo-600" />
+                        <Brain className="w-6 h-6 text-indigo-600" />
                         <div>
-                            <h2 className="text-xl font-bold text-slate-900">Column Mapping Wizard</h2>
-                            <p className="text-sm text-slate-500 mt-0.5">{fileName} · {totalRows} rows</p>
+                            <h2 className="text-xl font-bold text-slate-900">Intelligent Mapping Wizard</h2>
+                            <p className="text-sm text-slate-500 mt-0.5">{fileName} · {totalRows} rows · {headers.length} columns detected</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
+                    <div className="flex items-center gap-4">
+                        {orgStats && orgStats.totalFeedbacks > 0 && (
+                            <div className="text-right">
+                                <p className="text-xs text-slate-500">Your Mapping Accuracy</p>
+                                <p className="text-lg font-bold text-indigo-600">{orgStats.accuracyRate}%</p>
+                            </div>
+                        )}
+                        <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
+                    </div>
                 </div>
 
                 <div className="p-6 space-y-5 flex-1 overflow-y-auto">
-                    {/* Section 0: File Preview */}
+                    {/* Overall Confidence Bar */}
+                    {avgConf !== null && (
+                        <div className={`p-4 rounded-xl border flex items-center justify-between ${
+                            avgConf >= 70 ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'
+                        }`}>
+                            <span className="text-sm font-medium text-slate-700">
+                                Overall Mapping Confidence: <strong className={avgConf >= 70 ? 'text-emerald-700' : 'text-amber-700'}>{avgConf}%</strong>
+                            </span>
+                            <div className="w-32 bg-white/60 rounded-full h-2.5">
+                                <div
+                                    className={`h-2.5 rounded-full transition-all ${avgConf >= 70 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                                    style={{ width: `${avgConf}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Manual Review Alert */}
+                    {mapping.requiresManualReview && (
+                        <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-3">
+                            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+                            <p className="text-sm text-amber-800">
+                                Some mappings have low confidence. Please review and confirm before proceeding.
+                                Your corrections help improve future suggestions!
+                            </p>
+                        </div>
+                    )}
+
+                    {/* File Preview */}
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Your data preview:</p>
                         <div className="overflow-x-auto max-h-32 overflow-y-auto">
@@ -174,16 +292,55 @@ export default function MappingWizard({ isOpen, onClose, uploadResult, onConfirm
                             {autoExpanded ? <ChevronDown className="w-4 h-4 text-green-600" /> : <ChevronRight className="w-4 h-4 text-green-600" />}
                         </button>
                         {autoExpanded && (
-                            <div className="p-4 bg-green-50/40 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {Object.keys(mapping.matched).map(field => (
-                                    <div key={field}>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">
-                                            {FIELD_LABELS[field] || field}
-                                            {REQUIRED_FIELDS.includes(field) && <span className="text-red-500 ml-1">*</span>}
-                                        </label>
-                                        <SectionSelect field={field} value={userMapping[field] ?? ''} />
-                                    </div>
-                                ))}
+                            <div className="p-4 bg-green-50/40 space-y-3">
+                                {Object.keys(mapping.matched).map(field => {
+                                    const isRequired = REQUIRED_FIELDS.includes(field);
+                                    const isNarrow = NARROW_VISION_FIELDS.includes(field);
+                                    return (
+                                        <div key={field} className={`p-3 rounded-lg border ${isRequired ? 'border-blue-200 bg-blue-50/50' : 'border-slate-100 bg-white'}`}>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <label className="text-xs font-medium text-slate-600 flex items-center gap-2">
+                                                    {FIELD_LABELS[field] || field}
+                                                    {isRequired && <span className="text-red-500">*</span>}
+                                                    {isNarrow && (
+                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-600">Critical</span>
+                                                    )}
+                                                </label>
+                                                <div className="flex items-center gap-2">
+                                                    {getConfidenceBadge(field)}
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 items-center">
+                                                <div className="flex-1">
+                                                    <SectionSelect field={field} value={userMapping[field] ?? ''} />
+                                                </div>
+                                                {/* Feedback buttons */}
+                                                <button
+                                                    onClick={() => handleFeedbackToggle(field, true)}
+                                                    className={`p-1.5 rounded-lg text-xs transition-colors flex items-center gap-1 ${
+                                                        feedback[field]?.wasCorrect === true
+                                                            ? 'bg-emerald-500 text-white'
+                                                            : 'bg-slate-100 text-slate-500 hover:bg-emerald-100 hover:text-emerald-600'
+                                                    }`}
+                                                    title="Mark as correct"
+                                                >
+                                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleFeedbackToggle(field, false)}
+                                                    className={`p-1.5 rounded-lg text-xs transition-colors flex items-center gap-1 ${
+                                                        feedback[field]?.wasCorrect === false
+                                                            ? 'bg-red-500 text-white'
+                                                            : 'bg-slate-100 text-slate-500 hover:bg-red-100 hover:text-red-600'
+                                                    }`}
+                                                    title="Mark as wrong"
+                                                >
+                                                    <XCircle className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -263,6 +420,15 @@ export default function MappingWizard({ isOpen, onClose, uploadResult, onConfirm
                             )}
                         </div>
                     )}
+
+                    {/* Unmapped headers info */}
+                    {mapping.unmatchedExcelColumns.length > 0 && !unrecogExpanded && (
+                        <div className="p-3 bg-slate-50 rounded-lg">
+                            <p className="text-xs text-slate-500">
+                                <strong>{mapping.unmatchedExcelColumns.length}</strong> Excel columns will not be imported: {mapping.unmatchedExcelColumns.slice(0, 5).join(', ')}{mapping.unmatchedExcelColumns.length > 5 ? '...' : ''}
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Sticky Footer */}
@@ -276,9 +442,9 @@ export default function MappingWizard({ isOpen, onClose, uploadResult, onConfirm
                                 🟡 {manualCount} manual
                             </span>
                         )}
-                        {ignoredCount > 0 && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-500 rounded-full text-xs font-medium">
-                                ⚫ {ignoredCount} ignored
+                        {Object.keys(feedback).length > 0 && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
+                                📝 {Object.keys(feedback).length} feedback
                             </span>
                         )}
                     </div>

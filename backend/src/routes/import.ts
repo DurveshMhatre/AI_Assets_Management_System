@@ -23,58 +23,204 @@ const upload = multer({
     }
 });
 
-// Column mapping configuration
-const columnMappings = [
-    { field: 'assetName', aliases: ['Asset Name', 'asset_name', 'Item Name', 'AssetName', 'Name', 'Asset'] },
-    { field: 'brand', aliases: ['Brand', 'Brand Name', 'Manufacturer', 'Make'] },
-    { field: 'supplier', aliases: ['Supplier', 'Supplier Name', 'Vendor', 'Vendor Name'] },
-    { field: 'supplierEmail', aliases: ['Supplier Email', 'Vendor Email', 'Contact Email', 'Email'] },
-    { field: 'supplierPhone', aliases: ['Supplier Phone', 'Phone', 'Contact Number', 'Vendor Phone'] },
-    { field: 'supplierAddress', aliases: ['Supplier Address', 'Vendor Address', 'Address'] },
-    { field: 'supplierCity', aliases: ['City', 'Supplier City', 'Location City'] },
-    { field: 'supplierPincode', aliases: ['Pincode', 'Pin Code', 'Zip Code', 'Postal Code'] },
-    { field: 'branch', aliases: ['Branch', 'Sub Location', 'Location', 'Department'] },
-    { field: 'purchaseDate', aliases: ['Purchase Date', 'Buy Date', 'Acquisition Date'] },
-    { field: 'purchasePrice', aliases: ['Purchase Price', 'Cost', 'Amount', 'Value', 'Price'] },
-    { field: 'serialNumber', aliases: ['Serial Number', 'Serial No', 'S/N', 'Serial'] },
-    { field: 'quantity', aliases: ['Quantity', 'Qty', 'Count', 'Units'] },
-    { field: 'assetType', aliases: ['Asset Type', 'Category', 'Type', 'Classification'] },
-    { field: 'description', aliases: ['Description', 'Details', 'Remarks', 'Notes'] },
-    { field: 'warrantyExpiry', aliases: ['Warranty', 'Warranty Expiry', 'Warranty Date', 'Warranty End'] },
-    { field: 'status', aliases: ['Status', 'Condition', 'State'] },
-    { field: 'assignedTo', aliases: ['Assigned To', 'User', 'Employee', 'Owner'] },
-    { field: 'companyPolicy', aliases: ['Company Policy', 'Policy', 'Policy Notes'] },
-    { field: 'usefulLife', aliases: ['Useful Life', 'Life Years', 'Asset Life'] },
-    { field: 'salvageValue', aliases: ['Salvage Value', 'Residual Value', 'Salvage %'] },
-    { field: 'depreciationMethod', aliases: ['Depreciation Method', 'Dep Method'] },
-];
+// ─── FIELD CONFIGURATION ────────────────────────────────────────────────────────
 
-// Exact-dictionary for mapping wizard
-const EXACT_DICTIONARY: Record<string, string[]> = {
-    assetName: ['asset name', 'name', 'asset', 'item name', 'item'],
-    description: ['description', 'details', 'remarks', 'notes'],
-    brand: ['brand', 'brand name', 'manufacturer', 'make'],
-    supplier: ['supplier', 'supplier name', 'vendor', 'vendor name'],
-    supplierEmail: ['supplier email', 'vendor email', 'email', 'contact email'],
-    supplierPhone: ['supplier phone', 'phone', 'contact number', 'mobile'],
-    supplierAddress: ['supplier address', 'vendor address', 'address'],
-    city: ['city', 'supplier city', 'location city'],
-    pincode: ['pincode', 'pin code', 'zip', 'zip code', 'postal code'],
-    branch: ['branch', 'location', 'sub location', 'department', 'site', 'office'],
-    assetType: ['asset type', 'type', 'category', 'classification'],
-    serialNumber: ['serial number', 'serial no', 'serial', 's/n', 'sn'],
-    purchaseDate: ['purchase date', 'buy date', 'acquisition date', 'date of purchase', 'date'],
-    purchasePrice: ['purchase price', 'cost', 'price', 'amount', 'value', 'cost price'],
-    quantity: ['quantity', 'qty', 'count', 'units', 'stock'],
-    status: ['status', 'condition', 'state', 'asset status'],
-    warrantyExpiry: ['warranty expiry', 'warranty', 'warranty date', 'expiry date'],
-    usefulLife: ['useful life', 'life years', 'asset life', 'depreciation years'],
-    salvageValue: ['salvage value', 'residual value', 'scrap value'],
-    depMethod: ['depreciation method', 'dep method', 'method'],
-    assignedTo: ['assigned to', 'employee', 'owner', 'user', 'in charge'],
-    companyPolicy: ['company policy', 'policy', 'policy notes'],
+interface FieldConfig {
+    keywords: string[];
+    priority: number;   // 1 (highest) to 5 (lowest)
+    required: boolean;
+    narrowVision: boolean;
+    dataType?: 'currency' | 'date' | 'number';
+}
+
+const FIELD_DICTIONARY: Record<string, FieldConfig> = {
+    assetName:    { keywords: ['asset name', 'name', 'asset', 'item name', 'item', 'title', 'description'], priority: 1, required: true, narrowVision: true },
+    serialNumber: { keywords: ['serial number', 'serial no', 'serial', 's/n', 'sn', 'id', 'identifier', 'code'], priority: 1, required: true, narrowVision: true },
+    brand:        { keywords: ['brand', 'brand name', 'manufacturer', 'make', 'vendor', 'company'], priority: 2, required: false, narrowVision: false },
+    supplier:     { keywords: ['supplier', 'supplier name', 'vendor', 'vendor name', 'seller', 'provider', 'source'], priority: 2, required: false, narrowVision: false },
+    supplierEmail:{ keywords: ['supplier email', 'vendor email', 'email', 'contact email'], priority: 3, required: false, narrowVision: false },
+    supplierPhone:{ keywords: ['supplier phone', 'phone', 'contact number', 'mobile', 'vendor phone'], priority: 3, required: false, narrowVision: false },
+    supplierAddress:{ keywords: ['supplier address', 'vendor address', 'address'], priority: 4, required: false, narrowVision: false },
+    city:         { keywords: ['city', 'supplier city', 'location city'], priority: 4, required: false, narrowVision: false },
+    pincode:      { keywords: ['pincode', 'pin code', 'zip', 'zip code', 'postal code'], priority: 4, required: false, narrowVision: false },
+    branch:       { keywords: ['branch', 'location', 'sub location', 'department', 'site', 'office', 'place'], priority: 3, required: false, narrowVision: false },
+    assetType:    { keywords: ['asset type', 'type', 'category', 'classification', 'class', 'group'], priority: 2, required: false, narrowVision: false },
+    purchaseDate: { keywords: ['purchase date', 'buy date', 'acquisition date', 'date of purchase', 'date', 'acquired', 'bought'], priority: 1, required: true, narrowVision: true, dataType: 'date' },
+    purchasePrice:{ keywords: ['purchase price', 'cost', 'price', 'amount', 'value', 'cost price', 'purchase'], priority: 1, required: true, narrowVision: true, dataType: 'currency' },
+    quantity:     { keywords: ['quantity', 'qty', 'count', 'units', 'stock'], priority: 3, required: false, narrowVision: false, dataType: 'number' },
+    description:  { keywords: ['description', 'details', 'remarks', 'notes'], priority: 3, required: false, narrowVision: false },
+    status:       { keywords: ['status', 'condition', 'state', 'asset status', 'active'], priority: 3, required: false, narrowVision: false },
+    warrantyExpiry:{ keywords: ['warranty expiry', 'warranty', 'warranty date', 'expiry date', 'warranty end'], priority: 3, required: false, narrowVision: false, dataType: 'date' },
+    usefulLife:   { keywords: ['useful life', 'life years', 'asset life', 'depreciation years', 'years', 'duration', 'period'], priority: 4, required: false, narrowVision: false, dataType: 'number' },
+    salvageValue: { keywords: ['salvage value', 'residual value', 'scrap value', 'salvage', 'residual', 'scrap', 'end'], priority: 4, required: false, narrowVision: false, dataType: 'currency' },
+    depMethod:    { keywords: ['depreciation method', 'dep method', 'method'], priority: 4, required: false, narrowVision: false },
+    assignedTo:   { keywords: ['assigned to', 'employee', 'owner', 'user', 'in charge'], priority: 3, required: false, narrowVision: false },
+    companyPolicy:{ keywords: ['company policy', 'policy', 'policy notes'], priority: 4, required: false, narrowVision: false },
 };
 
+const REQUIRED_FIELDS = Object.entries(FIELD_DICTIONARY).filter(([, v]) => v.required).map(([k]) => k);
+
+// ─── HEADER NORMALISATION ───────────────────────────────────────────────────────
+
+function normalizeHeader(header: string): string {
+    return String(header || '').toLowerCase().trim()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, '_');
+}
+
+// ─── INTELLIGENT MAPPING ENGINE ─────────────────────────────────────────────────
+
+interface MappingSuggestion {
+    excelHeader: string;
+    confidence: number;  // 0–1
+}
+
+interface SmartMappingResult {
+    matched: Record<string, MappingSuggestion>;
+    unmappedSystemFields: string[];
+    unmatchedExcelColumns: string[];
+    missingRequired: string[];
+    allExcelHeaders: string[];
+    averageConfidence: number;
+    requiresManualReview: boolean;
+}
+
+/**
+ * Get org-pattern boost for a given header→field combination.
+ * Returns 0–0.15 boost based on org's history.
+ */
+async function getOrgPatternBoost(orgId: string, normalizedHeader: string, systemField: string): Promise<number> {
+    try {
+        const pattern = await prisma.orgMappingPattern.findFirst({
+            where: {
+                organizationId: orgId,
+                excelHeaderNormalized: normalizedHeader,
+                systemField,
+            },
+            orderBy: [{ successRate: 'desc' }, { usageCount: 'desc' }],
+        });
+        if (pattern) {
+            return pattern.successRate * 0.15; // Max 15% boost
+        }
+    } catch (error) {
+        console.error('Error fetching org patterns:', error);
+    }
+    return 0;
+}
+
+/**
+ * Context-aware similarity calculation with multiple factors.
+ */
+async function calculateSimilarity(
+    excelHeader: string, systemField: string, orgId: string | null
+): Promise<number> {
+    const fieldConfig = FIELD_DICTIONARY[systemField];
+    if (!fieldConfig) return 0;
+
+    const normalizedExcel = normalizeHeader(excelHeader);
+    let baseScore = 0;
+
+    // Factor 1: Exact keyword match (highest weight)
+    for (const keyword of fieldConfig.keywords) {
+        const normalizedKeyword = keyword.replace(/\s+/g, '_');
+        if (normalizedExcel === normalizedKeyword) {
+            baseScore = Math.max(baseScore, 0.95);
+        } else if (normalizedExcel.includes(normalizedKeyword) || normalizedKeyword.includes(normalizedExcel)) {
+            baseScore = Math.max(baseScore, 0.80);
+        }
+    }
+
+    // Factor 2: Fuzzy matching for partial matches
+    if (baseScore < 0.80) {
+        const fuse = new Fuse(fieldConfig.keywords, { threshold: 0.4 });
+        const results = fuse.search(excelHeader.toLowerCase().trim());
+        if (results.length > 0 && results[0].score !== undefined) {
+            const fuzzyScore = (1 - results[0].score) * 0.7;
+            baseScore = Math.max(baseScore, fuzzyScore);
+        }
+    }
+
+    // Factor 3: Organization pattern boost (learned mappings)
+    if (orgId) {
+        const orgBoost = await getOrgPatternBoost(orgId, normalizedExcel, systemField);
+        baseScore = Math.min(1.0, baseScore + orgBoost);
+    }
+
+    // Factor 4: Priority weighting (critical fields get threshold boost)
+    const priorityWeight = (6 - fieldConfig.priority) / 5; // Priority 1 = 1.0, Priority 5 = 0.2
+    baseScore = baseScore * (0.7 + 0.3 * priorityWeight);
+
+    // Factor 5: Narrow vision penalty for uncertain critical field matches
+    if (fieldConfig.narrowVision && baseScore < 0.7) {
+        baseScore = baseScore * 0.8;
+    }
+
+    return Math.round(baseScore * 100) / 100;
+}
+
+/**
+ * Generate intelligent mapping suggestions with confidence scores.
+ */
+async function generateSmartMappingV2(
+    excelHeaders: string[],
+    orgId: string | null,
+    options: { strictMode?: boolean; minConfidence?: number; requireConfirmationBelow?: number } = {}
+): Promise<SmartMappingResult> {
+    const { strictMode = false, minConfidence = 0.35, requireConfirmationBelow = 0.7 } = options;
+
+    const matched: Record<string, MappingSuggestion> = {};
+    const usedHeaders = new Set<string>();
+    const confidenceScores: number[] = [];
+
+    // Process each system field in priority order
+    const sortedFields = Object.entries(FIELD_DICTIONARY)
+        .sort((a, b) => a[1].priority - b[1].priority);
+
+    for (const [systemField, config] of sortedFields) {
+        let bestScore = 0;
+        let bestHeader: string | null = null;
+
+        for (const header of excelHeaders) {
+            if (usedHeaders.has(header)) continue;
+
+            const score = await calculateSimilarity(header, systemField, orgId);
+
+            const effectiveThreshold = (strictMode && config.narrowVision)
+                ? Math.max(minConfidence, 0.7)
+                : minConfidence;
+
+            if (score > bestScore && score >= effectiveThreshold) {
+                bestScore = score;
+                bestHeader = header;
+            }
+        }
+
+        if (bestHeader) {
+            matched[systemField] = { excelHeader: bestHeader, confidence: bestScore };
+            confidenceScores.push(bestScore);
+            usedHeaders.add(bestHeader);
+        }
+    }
+
+    const averageConfidence = confidenceScores.length > 0
+        ? Math.round((confidenceScores.reduce((a, b) => a + b, 0) / confidenceScores.length) * 100) / 100
+        : 0;
+
+    const requiresManualReview = confidenceScores.some(s => s < requireConfirmationBelow)
+        || REQUIRED_FIELDS.some(f => !matched[f]);
+
+    return {
+        matched,
+        unmappedSystemFields: Object.keys(FIELD_DICTIONARY).filter(f => !matched[f]),
+        unmatchedExcelColumns: excelHeaders.filter(h => !usedHeaders.has(h)),
+        missingRequired: REQUIRED_FIELDS.filter(f => !matched[f]),
+        allExcelHeaders: excelHeaders,
+        averageConfidence,
+        requiresManualReview,
+    };
+}
+
+// Legacy: simple exact-match for rapid fallback
 function generateSmartMapping(excelHeaders: string[]) {
     const norm = (s: string) => String(s || '').toLowerCase().trim()
         .replace(/[_\-\/\\]+/g, ' ').replace(/\s+/g, ' ');
@@ -82,8 +228,8 @@ function generateSmartMapping(excelHeaders: string[]) {
     const matched: Record<string, { excelHeader: string; confidence: string }> = {};
     const usedExcel = new Set<string>();
 
-    for (const [field, keywords] of Object.entries(EXACT_DICTIONARY)) {
-        for (const kw of keywords) {
+    for (const [field, config] of Object.entries(FIELD_DICTIONARY)) {
+        for (const kw of config.keywords) {
             const idx = normHeaders.indexOf(norm(kw));
             if (idx !== -1 && !usedExcel.has(excelHeaders[idx])) {
                 matched[field] = { excelHeader: excelHeaders[idx], confidence: 'EXACT' };
@@ -94,14 +240,20 @@ function generateSmartMapping(excelHeaders: string[]) {
     }
     return {
         matched,
-        unmappedSystemFields: Object.keys(EXACT_DICTIONARY).filter(f => !matched[f]),
+        unmappedSystemFields: Object.keys(FIELD_DICTIONARY).filter(f => !matched[f]),
         unmatchedExcelColumns: excelHeaders.filter(h => !usedExcel.has(h)),
-        missingRequired: ['assetName', 'purchasePrice', 'purchaseDate'].filter(f => !matched[f]),
+        missingRequired: REQUIRED_FIELDS.filter(f => !matched[f]),
         allExcelHeaders: excelHeaders,
     };
 }
 
-// Fuzzy match column headers
+// ─── COLUMN MAPPING (Fuse.js) ───────────────────────────────────────────────────
+
+const columnMappings = Object.entries(FIELD_DICTIONARY).map(([field, config]) => ({
+    field,
+    aliases: config.keywords.map(k => k.split('_').join(' ')),
+}));
+
 function mapColumns(headers: string[]): Record<string, string> {
     const allAliases = columnMappings.flatMap(m => m.aliases.map(a => ({ field: m.field, alias: a })));
     const fuse = new Fuse(allAliases, { keys: ['alias'], threshold: 0.3 });
@@ -117,7 +269,139 @@ function mapColumns(headers: string[]): Record<string, string> {
     return mapping;
 }
 
-// Upload and import Excel
+// ─── ROUTES ─────────────────────────────────────────────────────────────────────
+
+// ── POST /analyze — Intelligent mapping with confidence ──────────────────────
+router.post('/analyze', authenticate, async (req: AuthRequest, res: Response) => {
+    try {
+        const { headers, orgId } = req.body;
+
+        if (!headers || !Array.isArray(headers)) {
+            return res.status(400).json({ success: false, error: 'Headers array is required' });
+        }
+
+        const effectiveOrgId = orgId || req.user!.organizationId;
+
+        const mappingResult = await generateSmartMappingV2(headers, effectiveOrgId, {
+            strictMode: req.query.strict === 'true',
+            minConfidence: parseFloat(req.query.minConfidence as string) || 0.35,
+        });
+
+        res.json({ success: true, data: mappingResult });
+    } catch (error) {
+        console.error('Error analyzing import:', error);
+        res.status(500).json({ success: false, error: 'Failed to analyze import file' });
+    }
+});
+
+// ── POST /feedback — Record user corrections for learning ────────────────────
+router.post('/feedback', authenticate, async (req: AuthRequest, res: Response) => {
+    try {
+        const { mappings, orgId } = req.body;
+        const effectiveOrgId = orgId || req.user!.organizationId;
+
+        if (!mappings || !Array.isArray(mappings)) {
+            return res.status(400).json({ success: false, error: 'Mappings array is required' });
+        }
+
+        const results = [];
+        for (const mapping of mappings) {
+            const { excelHeader, systemField, wasCorrect, confidenceScore } = mapping;
+            if (!excelHeader || !systemField) continue;
+
+            const normalizedHeader = normalizeHeader(excelHeader);
+
+            // Insert feedback record
+            await prisma.mappingFeedback.create({
+                data: {
+                    organizationId: effectiveOrgId,
+                    excelHeaderOriginal: excelHeader,
+                    excelHeaderNormalized: normalizedHeader,
+                    mappedSystemField: systemField,
+                    wasCorrect: !!wasCorrect,
+                    confidenceScore: confidenceScore ?? null,
+                },
+            });
+
+            // Upsert organization pattern
+            const existing = await prisma.orgMappingPattern.findUnique({
+                where: {
+                    organizationId_excelHeaderNormalized_systemField: {
+                        organizationId: effectiveOrgId,
+                        excelHeaderNormalized: normalizedHeader,
+                        systemField,
+                    },
+                },
+            });
+
+            if (existing) {
+                const newCount = existing.usageCount + 1;
+                const newRate = ((existing.successRate * existing.usageCount) + (wasCorrect ? 1 : 0)) / newCount;
+                await prisma.orgMappingPattern.update({
+                    where: { id: existing.id },
+                    data: {
+                        usageCount: newCount,
+                        successRate: Math.round(newRate * 100) / 100,
+                        lastUsedAt: new Date(),
+                    },
+                });
+            } else {
+                await prisma.orgMappingPattern.create({
+                    data: {
+                        organizationId: effectiveOrgId,
+                        excelHeaderNormalized: normalizedHeader,
+                        systemField,
+                        usageCount: 1,
+                        successRate: wasCorrect ? 1.0 : 0.0,
+                        lastUsedAt: new Date(),
+                    },
+                });
+            }
+
+            results.push({ excelHeader, systemField, recorded: true });
+        }
+
+        res.json({ success: true, message: 'Feedback recorded successfully', data: results });
+    } catch (error) {
+        console.error('Error recording feedback:', error);
+        res.status(500).json({ success: false, error: 'Failed to record feedback' });
+    }
+});
+
+// ── GET /stats — Mapping accuracy stats for organization ─────────────────────
+router.get('/stats', authenticate, async (req: AuthRequest, res: Response) => {
+    try {
+        const orgId = req.user!.organizationId;
+
+        const feedbacks = await prisma.mappingFeedback.findMany({
+            where: { organizationId: orgId },
+        });
+
+        const total = feedbacks.length;
+        const correct = feedbacks.filter((f: { wasCorrect: boolean }) => f.wasCorrect).length;
+        const avgConfidence = total > 0
+            ? Math.round((feedbacks.reduce((sum: number, f: { confidenceScore: number | null }) => sum + (f.confidenceScore || 0), 0) / total) * 100) / 100
+            : 0;
+        const accuracyRate = total > 0
+            ? Math.round((correct / total) * 10000) / 100
+            : 0;
+
+        res.json({
+            success: true,
+            data: {
+                totalFeedbacks: total,
+                correctMappings: correct,
+                avgConfidence,
+                accuracyRate,
+            },
+        });
+    } catch (error) {
+        console.error('Error fetching stats:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch statistics' });
+    }
+});
+
+// ── POST /upload — Upload and import Excel ───────────────────────────────────
 router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequest, res: Response) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
@@ -223,8 +507,8 @@ router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequ
                                 email: getCellValue('supplierEmail') || null,
                                 phone: getCellValue('supplierPhone') || null,
                                 address: getCellValue('supplierAddress') || null,
-                                city: getCellValue('supplierCity') || null,
-                                pincode: getCellValue('supplierPincode') || null,
+                                city: getCellValue('city') || null,
+                                pincode: getCellValue('pincode') || null,
                                 organizationId: orgId
                             }
                         });
@@ -251,11 +535,11 @@ router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequ
                 if (typeName) {
                     let atype = await prisma.assetType.findFirst({ where: { name: typeName, organizationId: orgId } });
                     if (!atype) {
-                        const depMethod = getCellValue('depreciationMethod') || 'STRAIGHT_LINE';
+                        const depMethodVal = getCellValue('depMethod') || 'STRAIGHT_LINE';
                         const usefulLife = parseInt(getCellValue('usefulLife')) || 5;
                         const salvagePercent = parseFloat(getCellValue('salvageValue')) || 10;
                         atype = await prisma.assetType.create({
-                            data: { name: typeName, depreciationMethod: depMethod, usefulLifeYears: usefulLife, salvageValuePercent: salvagePercent, organizationId: orgId }
+                            data: { name: typeName, depreciationMethod: depMethodVal, usefulLifeYears: usefulLife, salvageValuePercent: salvagePercent, organizationId: orgId }
                         });
                         typesCreated++;
                     }
@@ -315,6 +599,10 @@ router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequ
                             } else if (method === 'DECLINING_BALANCE') {
                                 const rate = 1 - Math.pow(salvageValue / purchasePrice, 1 / atype.usefulLifeYears);
                                 depAmount = (purchasePrice * rate) / 12;
+                            } else if (method === 'SUM_OF_YEARS_DIGITS') {
+                                const syd = (atype.usefulLifeYears * (atype.usefulLifeYears + 1)) / 2;
+                                const firstYearDep = (atype.usefulLifeYears / syd) * (purchasePrice - salvageValue);
+                                depAmount = firstYearDep / 12;
                             } else {
                                 depAmount = (purchasePrice - salvageValue) / (atype.usefulLifeYears * 12);
                             }
@@ -388,7 +676,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequ
     }
 });
 
-// Import history
+// ── GET /history — Import history ────────────────────────────────────────────
 router.get('/history', authenticate, async (req: AuthRequest, res: Response) => {
     try {
         const jobs = await prisma.importJob.findMany({
@@ -402,7 +690,7 @@ router.get('/history', authenticate, async (req: AuthRequest, res: Response) => 
     }
 });
 
-// Download import errors
+// ── GET /:jobId/errors — Download import errors ──────────────────────────────
 router.get('/:jobId/errors', authenticate, async (req: AuthRequest, res: Response) => {
     try {
         const job = await prisma.importJob.findUnique({ where: { id: req.params.jobId } });
@@ -426,7 +714,7 @@ router.get('/:jobId/errors', authenticate, async (req: AuthRequest, res: Respons
     }
 });
 
-// Download template
+// ── GET /download — Download template ────────────────────────────────────────
 router.get('/download', async (_req, res: Response) => {
     try {
         const workbook = new ExcelJS.Workbook();
@@ -443,9 +731,8 @@ router.get('/download', async (_req, res: Response) => {
 
         ws.addRow(headers);
 
-        // Style header row
-        const headerRow = ws.getRow(1);
-        headerRow.eachCell((cell, colNumber) => {
+        const headerRow2 = ws.getRow(1);
+        headerRow2.eachCell((cell, colNumber) => {
             const isRequired = headers[colNumber - 1].includes('*');
             cell.fill = {
                 type: 'pattern',
@@ -461,7 +748,6 @@ router.get('/download', async (_req, res: Response) => {
             };
         });
 
-        // Add sample row
         ws.addRow([
             'Dell Latitude 5520', 'Laptop', 'Dell', 'DL-001234', 'HQ Mumbai',
             '2024-01-15', 85000, 1, 'ACTIVE',
@@ -470,10 +756,8 @@ router.get('/download', async (_req, res: Response) => {
             'John Doe', 'Standard IT Policy', 5, 10, 'STRAIGHT_LINE'
         ]);
 
-        // Set column widths
         ws.columns.forEach(col => { col.width = 20; });
 
-        // Instructions sheet
         const instrWs = workbook.addWorksheet('Instructions');
         instrWs.addRow(['Asset Import Template Instructions']);
         instrWs.addRow([]);
@@ -484,7 +768,7 @@ router.get('/download', async (_req, res: Response) => {
         instrWs.addRow(['Purchase Price', 'YES', 'Purchase cost (positive number)']);
         instrWs.addRow(['Purchase Date', 'No', 'Date format: YYYY-MM-DD']);
         instrWs.addRow(['Status', 'No', 'ACTIVE, INACTIVE, UNDER_MAINTENANCE, DISPOSED, LOST']);
-        instrWs.addRow(['Depreciation Method', 'No', 'STRAIGHT_LINE, DECLINING_BALANCE, UNITS_OF_PRODUCTION']);
+        instrWs.addRow(['Depreciation Method', 'No', 'STRAIGHT_LINE, DECLINING_BALANCE, SUM_OF_YEARS_DIGITS']);
         instrWs.getColumn(1).width = 25;
         instrWs.getColumn(2).width = 10;
         instrWs.getColumn(3).width = 50;
@@ -499,7 +783,7 @@ router.get('/download', async (_req, res: Response) => {
     }
 });
 
-// Upload-preview: smart mapping for MappingWizard
+// ── POST /upload-preview — Smart mapping for MappingWizard ───────────────────
 router.post('/upload-preview', authenticate, upload.single('file'), async (req: AuthRequest, res: Response) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, error: 'No file' });
@@ -523,7 +807,9 @@ router.post('/upload-preview', authenticate, upload.single('file'), async (req: 
             previewRows.push(rowData);
         }
 
-        const mapping = generateSmartMapping(headers);
+        // Use intelligent V2 mapping with org patterns
+        const orgId = req.user!.organizationId;
+        const mapping = await generateSmartMappingV2(headers, orgId);
 
         res.json({
             success: true,
@@ -541,7 +827,7 @@ router.post('/upload-preview', authenticate, upload.single('file'), async (req: 
     }
 });
 
-// Column mapping preview
+// ── POST /preview — Column mapping preview ───────────────────────────────────
 router.post('/preview', authenticate, upload.single('file'), async (req: AuthRequest, res: Response) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, error: 'No file' });
@@ -557,7 +843,6 @@ router.post('/preview', authenticate, upload.single('file'), async (req: AuthReq
 
         const columnMap = mapColumns(headers);
 
-        // Get first 5 rows preview
         const previewRows: any[] = [];
         for (let i = 2; i <= Math.min(6, ws.rowCount); i++) {
             const row = ws.getRow(i);

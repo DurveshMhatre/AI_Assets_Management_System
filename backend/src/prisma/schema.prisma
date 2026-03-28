@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -36,14 +36,16 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users           User[]
-  branches        Branch[]
-  assets          Asset[]
-  suppliers       Supplier[]
-  brands          Brand[]
-  assetTypes      AssetType[]
-  maintenanceLogs MaintenanceLog[]
-  importJobs      ImportJob[]
+  users              User[]
+  branches           Branch[]
+  assets             Asset[]
+  suppliers          Supplier[]
+  brands             Brand[]
+  assetTypes         AssetType[]
+  maintenanceLogs    MaintenanceLog[]
+  importJobs         ImportJob[]
+  mappingFeedbacks   MappingFeedback[]
+  orgMappingPatterns OrgMappingPattern[]
 }
 
 model Branch {
@@ -221,17 +223,19 @@ model Document {
 }
 
 model ImportJob {
-  id             String   @id @default(uuid())
-  fileName       String
-  status         String   @default("PENDING")
-  totalRows      Int      @default(0)
-  processedRows  Int      @default(0)
-  errorRows      Int      @default(0)
-  errorLog       String   @default("[]")
-  importedBy     String
-  organizationId String
-  createdAt      DateTime @default(now())
-  completedAt    DateTime?
+  id                    String   @id @default(uuid())
+  fileName              String
+  status                String   @default("PENDING")
+  totalRows             Int      @default(0)
+  processedRows         Int      @default(0)
+  errorRows             Int      @default(0)
+  errorLog              String   @default("[]")
+  importedBy            String
+  organizationId        String
+  mappingConfidenceAvg  Float?
+  mappingRequiredManual Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  completedAt           DateTime?
 
   user         User         @relation(fields: [importedBy], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
@@ -249,4 +253,36 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
+}
+
+model MappingFeedback {
+  id                    String   @id @default(uuid())
+  organizationId        String
+  excelHeaderOriginal   String
+  excelHeaderNormalized String
+  mappedSystemField     String
+  wasCorrect            Boolean
+  confidenceScore       Float?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, excelHeaderNormalized])
+  @@index([mappedSystemField])
+}
+
+model OrgMappingPattern {
+  id                    String   @id @default(uuid())
+  organizationId        String
+  excelHeaderNormalized String
+  systemField           String
+  usageCount            Int      @default(1)
+  successRate           Float    @default(1.0)
+  lastUsedAt            DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, excelHeaderNormalized, systemField])
+  @@index([organizationId])
 }
