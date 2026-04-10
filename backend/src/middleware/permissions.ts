@@ -4,7 +4,7 @@ import { Response, NextFunction } from 'express';
 type Permission = 'view' | 'create' | 'edit' | 'delete' | 'export' | 'execute';
 type Feature = 'dashboard' | 'assets' | 'inventory' | 'maintenance' | 'depreciation' |
     'reports' | 'asset-types' | 'brands' | 'suppliers' | 'roles' | 'settings' |
-    'import' | 'users';
+    'import' | 'users' | 'qr';
 
 const permissionMatrix: Record<string, Record<Feature, Permission[]>> = {
     ADMIN: {
@@ -21,6 +21,7 @@ const permissionMatrix: Record<string, Record<Feature, Permission[]>> = {
         settings: ['view', 'edit'],
         import: ['view', 'execute'],
         users: ['view', 'create', 'edit', 'delete'],
+        qr: ['view', 'create', 'edit', 'delete', 'execute'],
     },
     MANAGER: {
         dashboard: ['view'],
@@ -36,6 +37,7 @@ const permissionMatrix: Record<string, Record<Feature, Permission[]>> = {
         settings: ['view'],
         import: ['view', 'execute'],
         users: ['view'],
+        qr: ['view', 'create', 'edit', 'execute'],
     },
     TECHNICIAN: {
         dashboard: ['view'],
@@ -51,6 +53,7 @@ const permissionMatrix: Record<string, Record<Feature, Permission[]>> = {
         settings: [],
         import: ['view'],
         users: [],
+        qr: ['view', 'create'],
     },
     VIEWER: {
         dashboard: ['view'],
@@ -66,6 +69,7 @@ const permissionMatrix: Record<string, Record<Feature, Permission[]>> = {
         settings: [],
         import: ['view'],
         users: [],
+        qr: ['view'],
     }
 };
 

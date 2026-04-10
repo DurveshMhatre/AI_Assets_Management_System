@@ -25,6 +25,9 @@ model User {
   documents       Document[]
   importJobs      ImportJob[]
   auditLogs       AuditLog[]
+  createdAssetTypes  AssetType[]  @relation("AssetTypeCreator")
+  reviewedAssetTypes AssetType[]  @relation("AssetTypeReviewer")
+  qrApprovalLogs  QRApprovalLog[]
 }
 
 model Organization {
@@ -98,19 +101,27 @@ model Supplier {
 }
 
 model AssetType {
-  id                   String  @id @default(uuid())
-  name                 String
-  description          String?
-  depreciationMethod   String  @default("STRAIGHT_LINE")
-  usefulLifeYears      Int     @default(5)
-  salvageValuePercent  Float   @default(10)
-  organizationId       String
-  brandId              String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                     String    @id @default(uuid())
+  name                   String
+  description            String?
+  depreciationMethod     String    @default("STRAIGHT_LINE")
+  usefulLifeYears        Int       @default(5)
+  salvageValuePercent    Float     @default(10)
+  annualDepreciationRate Float?
+  status                 String    @default("approved")
+  rejectionReason        String?
+  createdById            String?
+  reviewedById           String?
+  reviewedAt             DateTime?
+  organizationId         String
+  brandId                String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
   brand        Brand?       @relation(fields: [brandId], references: [id])
+  createdBy    User?        @relation("AssetTypeCreator", fields: [createdById], references: [id])
+  reviewedBy   User?        @relation("AssetTypeReviewer", fields: [reviewedById], references: [id])
   assets       Asset[]
 }
 
@@ -152,6 +163,7 @@ model Asset {
   maintenanceLogs      MaintenanceLog[]
   inventoryRecords     InventoryRecord[]
   documents            Document[]
+  qrCodeRecord         QRCode?
 }
 
 model InventoryRecord {
@@ -285,4 +297,79 @@ model OrgMappingPattern {
 
   @@unique([organizationId, excelHeaderNormalized, systemField])
   @@index([organizationId])
+}
+
+model QRCode {
+  id            String    @id @default(uuid())
+  assetId       String    @unique
+  qrData        String
+  status        String    @default("DRAFT")
+  generatedAt   DateTime  @default(now())
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  printedAt     DateTime?
+  appliedAt     DateTime?
+  updatedAt     DateTime  @updatedAt
+
+  asset         Asset          @relation(fields: [assetId], references: [id])
+  approvalLogs  QRApprovalLog[]
+}
+
+model QRApprovalLog {
+  id         String   @id @default(uuid())
+  qrCodeId   String
+  action     String
+  userId     String
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  qrCode     QRCode   @relation(fields: [qrCodeId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model InventoryCategory {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  organizationId  String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  items           InventoryItem[]
+}
+
+model InventoryItem {
+  id              String   @id @default(uuid())
+  name            String
+  sku             String?
+  categoryId      String?
+  branchId        String?
+  quantity        Int      @default(0)
+  minStockLevel   Int      @default(0)
+  maxStockLevel   Int      @default(100)
+  unitPrice       Float    @default(0)
+  totalValue      Float    @default(0)
+  lastAuditDate   DateTime?
+  auditedBy       String?
+  notes           String?
+  organizationId  String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  category        InventoryCategory? @relation(fields: [categoryId], references: [id])
+  transactions    InventoryTransaction[]
+}
+
+model InventoryTransaction {
+  id              String   @id @default(uuid())
+  inventoryItemId String
+  type            String
+  quantity        Int
+  previousQty     Int
+  newQty          Int
+  reason          String?
+  performedBy     String?
+  createdAt       DateTime @default(now())
+
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
 }

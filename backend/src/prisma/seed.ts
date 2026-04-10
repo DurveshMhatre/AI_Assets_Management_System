@@ -76,16 +76,24 @@ async function main() {
     ]);
     console.log('✅ Suppliers created');
 
-    // 6. Asset Types
+    // 6. Asset Types (existing + 7 standard Indian types from Spec v2)
     const assetTypes = await Promise.all([
-        prisma.assetType.create({ data: { name: 'Laptop', description: 'Portable computers', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 4, salvageValuePercent: 10, organizationId: org.id } }),
-        prisma.assetType.create({ data: { name: 'Desktop', description: 'Desktop computers and workstations', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 5, salvageValuePercent: 10, organizationId: org.id } }),
-        prisma.assetType.create({ data: { name: 'Server', description: 'Enterprise servers', depreciationMethod: 'DECLINING_BALANCE', usefulLifeYears: 7, salvageValuePercent: 5, organizationId: org.id } }),
-        prisma.assetType.create({ data: { name: 'Printer', description: 'Printers and scanners', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 5, salvageValuePercent: 10, organizationId: org.id } }),
-        prisma.assetType.create({ data: { name: 'Office Furniture', description: 'Desks, chairs, cabinets', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 10, salvageValuePercent: 5, organizationId: org.id } }),
-        prisma.assetType.create({ data: { name: 'Air Conditioner', description: 'HVAC systems', depreciationMethod: 'DECLINING_BALANCE', usefulLifeYears: 8, salvageValuePercent: 10, organizationId: org.id } }),
+        prisma.assetType.create({ data: { name: 'Laptop', description: 'Portable computers', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 4, salvageValuePercent: 10, annualDepreciationRate: 22.5, status: 'approved', organizationId: org.id } }),
+        prisma.assetType.create({ data: { name: 'Desktop', description: 'Desktop computers and workstations', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 5, salvageValuePercent: 10, annualDepreciationRate: 18, status: 'approved', organizationId: org.id } }),
+        prisma.assetType.create({ data: { name: 'Server', description: 'Enterprise servers', depreciationMethod: 'DECLINING_BALANCE', usefulLifeYears: 7, salvageValuePercent: 5, annualDepreciationRate: 33.98, status: 'approved', organizationId: org.id } }),
+        prisma.assetType.create({ data: { name: 'Printer', description: 'Printers and scanners', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 5, salvageValuePercent: 10, annualDepreciationRate: 18, status: 'approved', organizationId: org.id } }),
+        prisma.assetType.create({ data: { name: 'Office Furniture', description: 'Desks, chairs, cabinets', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 10, salvageValuePercent: 5, annualDepreciationRate: 9.5, status: 'approved', organizationId: org.id } }),
+        prisma.assetType.create({ data: { name: 'Air Conditioner', description: 'HVAC systems', depreciationMethod: 'DECLINING_BALANCE', usefulLifeYears: 8, salvageValuePercent: 10, annualDepreciationRate: 25.08, status: 'approved', organizationId: org.id } }),
+        // Standard Indian asset categories from Companies Act
+        prisma.assetType.create({ data: { name: 'Plant & Machinery', description: 'Industrial machinery and equipment', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 15, salvageValuePercent: 5, annualDepreciationRate: 6.33, status: 'approved', organizationId: org.id } }),
+        prisma.assetType.create({ data: { name: 'Office Equipments', description: 'Office devices, peripherals, etc.', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 5, salvageValuePercent: 5, annualDepreciationRate: 19, status: 'approved', organizationId: org.id } }),
+        prisma.assetType.create({ data: { name: 'Computer', description: 'Desktops, laptops, tablets', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 3, salvageValuePercent: 5, annualDepreciationRate: 31.67, status: 'approved', organizationId: org.id } }),
+        prisma.assetType.create({ data: { name: 'Building', description: 'Commercial and industrial buildings', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 30, salvageValuePercent: 10, annualDepreciationRate: 3, status: 'approved', organizationId: org.id } }),
+        prisma.assetType.create({ data: { name: 'Pipeline and Bridges', description: 'Infrastructure assets', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 30, salvageValuePercent: 5, annualDepreciationRate: 3.17, status: 'approved', organizationId: org.id } }),
+        prisma.assetType.create({ data: { name: 'Electrical Fitting', description: 'Wiring, switchboards, transformers', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 10, salvageValuePercent: 5, annualDepreciationRate: 9.5, status: 'approved', organizationId: org.id } }),
+        prisma.assetType.create({ data: { name: 'Furniture and Fixture', description: 'Office furniture, fixtures, fittings', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 10, salvageValuePercent: 10, annualDepreciationRate: 9, status: 'approved', organizationId: org.id } }),
     ]);
-    console.log('✅ Asset Types created');
+    console.log('✅ Asset Types created (13 types including 7 standard Indian categories)');
 
     // 7. Assets (50 sample assets)
     const statuses = ['ACTIVE', 'ACTIVE', 'ACTIVE', 'ACTIVE', 'INACTIVE', 'UNDER_MAINTENANCE'];

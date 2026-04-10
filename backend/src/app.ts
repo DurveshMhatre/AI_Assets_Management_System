@@ -19,6 +19,7 @@ import userRoutes from './routes/users';
 import roleRoutes from './routes/roles';
 import settingsRoutes from './routes/settings';
 import auditLogRoutes from './routes/auditLogs';
+import qrRoutes from './routes/qrRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -46,6 +47,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/qr', qrRoutes);
 app.use('/api/templates', importRoutes);
 
 // Health check

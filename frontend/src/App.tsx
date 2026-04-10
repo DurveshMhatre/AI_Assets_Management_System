@@ -16,6 +16,8 @@ import Brands from './pages/Brands/Brands';
 import Suppliers from './pages/Suppliers/Suppliers';
 import Roles from './pages/Roles/Roles';
 import Settings from './pages/Settings/Settings';
+import QRApprovals from './pages/QRApprovals/QRApprovals';
+import QRTracker from './pages/QRTracker/QRTracker';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -44,6 +46,8 @@ export default function App() {
                     <Route path="asset-types" element={<AssetTypes />} />
                     <Route path="brands" element={<Brands />} />
                     <Route path="suppliers" element={<Suppliers />} />
+                    <Route path="qr-tracker" element={<QRTracker />} />
+                    <Route path="qr-approvals" element={<QRApprovals />} />
                     <Route path="roles" element={<Roles />} />
                     <Route path="settings" element={<Settings />} />
                 </Route>

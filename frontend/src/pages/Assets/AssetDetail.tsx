@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Package, Calendar, MapPin, TrendingDown, User, Tag, Shield, Download, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { ArrowLeft, Package, Calendar, MapPin, TrendingDown, User, Tag, Shield, Download, RefreshCw, AlertTriangle, CheckCircle2, QrCode } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
@@ -16,7 +16,7 @@ export default function AssetDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const [activeTab, setActiveTab] = useState<'details' | 'depreciation'>('details');
+    const [activeTab, setActiveTab] = useState<'details' | 'depreciation' | 'qr'>('details');
     const [depPage, setDepPage] = useState(1);
     const [selectedMethod, setSelectedMethod] = useState('');
     const [recalculating, setRecalculating] = useState(false);
@@ -31,6 +31,24 @@ export default function AssetDetail() {
         queryKey: ['dep-summary', id],
         queryFn: () => api.get(`/depreciation/${id}/asset-summary`).then(r => r.data.data),
         enabled: !!id
+    });
+
+    // QR Code data
+    const { data: qrData, refetch: refetchQR } = useQuery({
+        queryKey: ['qr-asset', id],
+        queryFn: () => api.get(`/qr/asset/${id}`).then(r => r.data.data),
+        enabled: !!id,
+    });
+
+    const generateQR = useMutation({
+        mutationFn: () => api.post(`/qr/generate/${id}`),
+        onSuccess: () => { toast.success('QR generated!'); refetchQR(); },
+        onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
+    });
+
+    const submitQR = useMutation({
+        mutationFn: (qrId: string) => api.post(`/qr/submit/${qrId}`),
+        onSuccess: () => { toast.success('Submitted for approval!'); refetchQR(); },
     });
 
     // Set initial method once dep data is loaded
@@ -129,7 +147,7 @@ export default function AssetDetail() {
                 <div className="lg:col-span-2 space-y-5">
                     {/* Tabs */}
                     <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-                        {(['details', 'depreciation'] as const).map(tab => (
+                        {(['details', 'depreciation', 'qr'] as const).map(tab => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
@@ -138,9 +156,10 @@ export default function AssetDetail() {
                                         : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
-                                {tab}
+                                {tab === 'qr' ? 'QR Code' : tab}
                             </button>
                         ))}
+
                     </div>
 
                     {/* Details Tab */}
@@ -445,6 +464,55 @@ export default function AssetDetail() {
                                 )}
                             </div>
                         </div>
+                    </div>
+
+                    {/* QR Code Panel */}
+                    <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                        <div className="flex items-center gap-2 mb-3">
+                            <QrCode className="w-4 h-4 text-indigo-600" />
+                            <h3 className="text-sm font-semibold text-slate-700">QR Code Status</h3>
+                        </div>
+                        {!qrData ? (
+                            <div>
+                                <p className="text-xs text-slate-400 mb-3">No QR code generated yet</p>
+                                <button onClick={() => generateQR.mutate()}
+                                    disabled={generateQR.isPending}
+                                    className="w-full py-2 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700">
+                                    {generateQR.isPending ? 'Generating...' : 'Generate QR Code'}
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs text-slate-500">Status</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                        qrData.status === 'APPLIED' ? 'bg-emerald-100 text-emerald-700' :
+                                        qrData.status === 'APPROVED' || qrData.status === 'PRINTED' ? 'bg-blue-100 text-blue-700' :
+                                        qrData.status === 'PENDING_APPROVAL' ? 'bg-amber-100 text-amber-700' :
+                                        qrData.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                                        'bg-slate-100 text-slate-600'}`}>
+                                        {qrData.status.replace(/_/g, ' ')}
+                                    </span>
+                                </div>
+                                {qrData.status === 'DRAFT' && (
+                                    <button onClick={() => submitQR.mutate(qrData.id)}
+                                        className="w-full py-2 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 mt-2">
+                                        Submit for Approval
+                                    </button>
+                                )}
+                                {qrData.approvalLogs?.length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-slate-100">
+                                        <p className="text-xs text-slate-400 mb-1">History</p>
+                                        {qrData.approvalLogs.slice(0, 3).map((log: any) => (
+                                            <div key={log.id} className="flex items-center justify-between text-xs py-0.5">
+                                                <span className="text-slate-600">{log.action}</span>
+                                                <span className="text-slate-400">{log.user?.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

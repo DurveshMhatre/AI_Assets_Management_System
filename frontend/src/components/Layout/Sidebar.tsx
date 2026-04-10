@@ -2,7 +2,8 @@ import { NavLink } from 'react-router-dom';
 import {
     LayoutDashboard, Package, BarChart3, Boxes, Wrench,
     TrendingDown, FileText, Tags, Award, Truck,
-    Shield, Settings, ChevronLeft, ChevronRight, Sparkles
+    Shield, Settings, ChevronLeft, ChevronRight, Sparkles,
+    QrCode, ScanLine
 } from 'lucide-react';
 
 interface Props {
@@ -21,6 +22,8 @@ const navItems = [
     { to: '/asset-types', icon: Tags, label: 'Asset Types' },
     { to: '/brands', icon: Award, label: 'Brands' },
     { to: '/suppliers', icon: Truck, label: 'Suppliers' },
+    { to: '/qr-tracker', icon: QrCode, label: 'QR Tracker' },
+    { to: '/qr-approvals', icon: ScanLine, label: 'QR Approvals' },
     { to: '/roles', icon: Shield, label: 'Roles & Access' },
     { to: '/settings', icon: Settings, label: 'Settings' },
 ];

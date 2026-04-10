@@ -1,4 +1,4 @@
-🚀 AMS System Fixes & Smart Mapping Implementation Guide
+ System Fixes & Smart Mapping Implementation Guide
 This document provides the complete source code and logic to fix the identified issues in the Asset Management System (AMS) and implement the sophisticated Excel Import Engine.
 
 📂 Table of Contents
