@@ -34,7 +34,7 @@ export default function AssetTypes() {
     const [rejectReason, setRejectReason] = useState('');
     const [form, setForm] = useState({
         name: '', description: '', depreciationMethod: 'STRAIGHT_LINE',
-        usefulLifeYears: 5, salvageValuePercent: 10,
+        usefulLifeYears: 5, salvageValuePercent: 10, codePrefix: '',
     });
 
     const { data, isLoading } = useQuery({
@@ -101,14 +101,15 @@ export default function AssetTypes() {
         setForm({
             name: t.name, description: t.description || '',
             depreciationMethod: t.depreciationMethod,
-            usefulLifeYears: t.usefulLifeYears, salvageValuePercent: t.salvageValuePercent
+            usefulLifeYears: t.usefulLifeYears, salvageValuePercent: t.salvageValuePercent,
+            codePrefix: t.codePrefix || '',
         });
         setShowForm(true);
     };
 
     const openNew = () => {
         setEditing(null);
-        setForm({ name: '', description: '', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 5, salvageValuePercent: 10 });
+        setForm({ name: '', description: '', depreciationMethod: 'STRAIGHT_LINE', usefulLifeYears: 5, salvageValuePercent: 10, codePrefix: '' });
         setShowForm(true);
     };
 
@@ -295,6 +296,19 @@ export default function AssetTypes() {
                                         onChange={e => setForm({ ...form, salvageValuePercent: parseInt(e.target.value) || 0 })}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Asset Code Prefix (auto-generated if blank)</label>
+                                <input
+                                    value={form.codePrefix}
+                                    onChange={e => setForm({ ...form, codePrefix: e.target.value.toUpperCase().slice(0, 6) })}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm uppercase"
+                                    placeholder="e.g. PM, OE, COMP (max 6 chars)"
+                                    maxLength={6}
+                                />
+                                <p className="text-xs text-slate-400 mt-1">
+                                    Assets of this type will be coded: {(form.codePrefix || 'AUTO')}-00001, {(form.codePrefix || 'AUTO')}-00002 ...
+                                </p>
                             </div>
 
                             {/* Live depreciation rate preview */}

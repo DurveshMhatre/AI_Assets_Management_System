@@ -66,6 +66,48 @@ router.put('/:id/adjust', async (req: AuthRequest, res: Response) => {
     }
 });
 
+// Create InventoryRecord (add asset to inventory) — Fix 2
+router.post('/records', async (req: AuthRequest, res: Response) => {
+    try {
+        const { assetId, branchId, quantity } = req.body;
+        if (!assetId || !branchId) {
+            return res.status(400).json({ success: false, error: 'assetId and branchId are required' });
+        }
+        const existing = await prisma.inventoryRecord.findFirst({ where: { assetId, branchId } });
+        if (existing) {
+            return res.status(400).json({ success: false, error: 'This asset is already in inventory for this branch' });
+        }
+        const record = await prisma.inventoryRecord.create({
+            data: {
+                assetId,
+                branchId,
+                quantity: parseInt(quantity) || 1,
+                minStockLevel: 1,
+                maxStockLevel: 100,
+            },
+            include: {
+                asset: { select: { name: true, assetCode: true } },
+                branch: { select: { name: true } },
+            }
+        });
+        res.status(201).json({ success: true, data: record });
+    } catch (error) {
+        console.error('Create inventory record error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// Delete InventoryRecord (remove asset from inventory) — Fix 2
+router.delete('/records/:id', async (req: AuthRequest, res: Response) => {
+    try {
+        await prisma.inventoryRecord.delete({ where: { id: req.params.id } });
+        res.json({ success: true, message: 'Removed from inventory' });
+    } catch (error) {
+        console.error('Delete inventory record error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // NEW: Standalone Inventory CRUD (InventoryItem + Categories + Transactions)
 // ═══════════════════════════════════════════════════════════════════════════

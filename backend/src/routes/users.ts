@@ -34,11 +34,19 @@ router.post('/', requireRole('ADMIN'), async (req: AuthRequest, res: Response) =
 
 router.put('/:id', requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
     try {
-        const { name, role, isActive } = req.body;
+        const { name, email, password, role, isActive } = req.body;
         const updateData: any = {};
-        if (name) updateData.name = name;
-        if (role) updateData.role = role;
+        if (name !== undefined) updateData.name = name;
+        if (role !== undefined) updateData.role = role;
         if (isActive !== undefined) updateData.isActive = isActive;
+        if (email !== undefined) {
+            const existing = await prisma.user.findFirst({ where: { email, id: { not: req.params.id } } });
+            if (existing) return res.status(400).json({ success: false, error: 'Email already in use' });
+            updateData.email = email;
+        }
+        if (password) {
+            updateData.password = await bcrypt.hash(password, 10);
+        }
 
         const user = await prisma.user.update({
             where: { id: req.params.id },

@@ -3,8 +3,9 @@ import {
     LayoutDashboard, Package, BarChart3, Boxes, Wrench,
     TrendingDown, FileText, Tags, Award, Truck,
     Shield, Settings, ChevronLeft, ChevronRight, Sparkles,
-    QrCode, ScanLine
+    QrCode, ScanLine, Users
 } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
 
 interface Props {
     collapsed: boolean;
@@ -24,11 +25,15 @@ const navItems = [
     { to: '/suppliers', icon: Truck, label: 'Suppliers' },
     { to: '/qr-tracker', icon: QrCode, label: 'QR Tracker' },
     { to: '/qr-approvals', icon: ScanLine, label: 'QR Approvals' },
+    { to: '/users', icon: Users, label: 'Users', adminOnly: true },
     { to: '/roles', icon: Shield, label: 'Roles & Access' },
     { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 export default function Sidebar({ collapsed, onToggle }: Props) {
+    const user = useAuthStore((s) => s.user);
+    const visibleNavItems = navItems.filter((item) => !item.adminOnly || user?.role === 'ADMIN');
+
     return (
         <aside className={`fixed top-0 left-0 h-screen bg-navy-900 text-white z-40 
       transition-all duration-300 flex flex-col ${collapsed ? 'w-16' : 'w-60'}`}>
@@ -51,7 +56,7 @@ export default function Sidebar({ collapsed, onToggle }: Props) {
             {/* Navigation */}
             <nav className="flex-1 py-4 overflow-y-auto">
                 <ul className="space-y-1 px-2">
-                    {navItems.map((item) => (
+                    {visibleNavItems.map((item) => (
                         <li key={item.to}>
                             <NavLink
                                 to={item.to}

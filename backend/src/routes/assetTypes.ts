@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { generateCodePrefix } from '../utils/assetHelpers';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -75,12 +76,13 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     try {
         const role = req.user!.role;
         const autoApprove = role === 'ADMIN' || role === 'MANAGER';
-        const { name, description, depreciationMethod, usefulLifeYears, salvageValuePercent, brandId } = req.body;
+        const { name, description, depreciationMethod, usefulLifeYears, salvageValuePercent, brandId, codePrefix } = req.body;
 
         const method = depreciationMethod || 'STRAIGHT_LINE';
         const life = parseInt(usefulLifeYears) || 5;
         const salvage = parseFloat(salvageValuePercent) || 10;
         const depRate = calcAnnualDepRate(method, life, salvage);
+        const prefix = codePrefix || generateCodePrefix(name);
 
         const type = await prisma.assetType.create({
             data: {
@@ -90,6 +92,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
                 usefulLifeYears: life,
                 salvageValuePercent: salvage,
                 annualDepreciationRate: depRate,
+                codePrefix: prefix,
                 status: autoApprove ? 'approved' : 'pending_review',
                 createdById: req.user!.id,
                 ...(autoApprove ? { reviewedById: req.user!.id, reviewedAt: new Date() } : {}),
@@ -138,7 +141,7 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
 // ── PUT /:id — Update type ──────────────────────────────────────────────
 router.put('/:id', async (req: AuthRequest, res: Response) => {
     try {
-        const { name, description, depreciationMethod, usefulLifeYears, salvageValuePercent, brandId } = req.body;
+        const { name, description, depreciationMethod, usefulLifeYears, salvageValuePercent, brandId, codePrefix } = req.body;
 
         const updateData: any = {};
         if (name !== undefined) updateData.name = name;
@@ -147,6 +150,12 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
         if (depreciationMethod !== undefined) updateData.depreciationMethod = depreciationMethod;
         if (usefulLifeYears !== undefined) updateData.usefulLifeYears = parseInt(usefulLifeYears);
         if (salvageValuePercent !== undefined) updateData.salvageValuePercent = parseFloat(salvageValuePercent);
+        if (codePrefix !== undefined) updateData.codePrefix = codePrefix || null;
+
+        // Auto-generate prefix from name if name changed and no explicit prefix
+        if (name && codePrefix === undefined) {
+            updateData.codePrefix = generateCodePrefix(name);
+        }
 
         // Recalculate dep rate if relevant fields changed
         if (depreciationMethod || usefulLifeYears || salvageValuePercent) {

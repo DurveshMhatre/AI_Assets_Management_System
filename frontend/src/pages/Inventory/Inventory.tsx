@@ -21,6 +21,16 @@ export default function Inventory() {
     const [stockReason, setStockReason] = useState('');
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
+    // ── Records tab state (Fix 2) ────────────────────────────────────────
+    const [addAssetModal, setAddAssetModal] = useState(false);
+    const [addAssetId, setAddAssetId] = useState('');
+    const [addBranchId, setAddBranchId] = useState('');
+    const [addQuantity, setAddQuantity] = useState(1);
+    const [adjustModal, setAdjustModal] = useState<{ record: any } | null>(null);
+    const [adjustQty, setAdjustQty] = useState(0);
+    const [adjustNotes, setAdjustNotes] = useState('');
+    const [removeRecordConfirm, setRemoveRecordConfirm] = useState<string | null>(null);
+
     // Legacy asset-linked inventory
     const { data: legacyData, isLoading: legacyLoading } = useQuery({
         queryKey: ['inventory'],
@@ -41,6 +51,21 @@ export default function Inventory() {
         queryFn: () => api.get('/inventory/categories').then(r => r.data.data),
     });
 
+    // Assets list (for Add Asset to Inventory modal)
+    const { data: assetsData } = useQuery({
+        queryKey: ['assets-for-inventory'],
+        queryFn: () => api.get('/assets?limit=200').then(r => r.data.data),
+        enabled: addAssetModal,
+    });
+
+    // Branches list (for Add Asset to Inventory modal)
+    const { data: branchesData } = useQuery({
+        queryKey: ['branches-for-inventory'],
+        queryFn: () => api.get('/settings/branches').then(r => r.data.data || []),
+        enabled: addAssetModal,
+    });
+
+    // ── Items tab mutations ──────────────────────────────────────────────
     const saveMutation = useMutation({
         mutationFn: (data: any) => editing
             ? api.put(`/inventory/items/${editing.id}`, data)
@@ -74,6 +99,41 @@ export default function Inventory() {
         onError: (e: any) => toast.error(e.response?.data?.error || 'Stock operation failed'),
     });
 
+    // ── Records tab mutations (Fix 2) ────────────────────────────────────
+    const addToInventoryMutation = useMutation({
+        mutationFn: ({ assetId, branchId, quantity }: any) =>
+            api.post('/inventory/records', { assetId, branchId, quantity }),
+        onSuccess: () => {
+            toast.success('Asset added to inventory!');
+            queryClient.invalidateQueries({ queryKey: ['inventory'] });
+            setAddAssetModal(false);
+            setAddAssetId(''); setAddBranchId(''); setAddQuantity(1);
+        },
+        onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to add'),
+    });
+
+    const adjustMutation = useMutation({
+        mutationFn: ({ id, quantity, notes }: any) =>
+            api.put(`/inventory/${id}/adjust`, { quantity, notes }),
+        onSuccess: () => {
+            toast.success('Stock updated!');
+            queryClient.invalidateQueries({ queryKey: ['inventory'] });
+            setAdjustModal(null);
+        },
+        onError: () => toast.error('Adjust failed'),
+    });
+
+    const removeFromInventoryMutation = useMutation({
+        mutationFn: (id: string) => api.delete(`/inventory/records/${id}`),
+        onSuccess: () => {
+            toast.success('Removed from inventory');
+            queryClient.invalidateQueries({ queryKey: ['inventory'] });
+            setRemoveRecordConfirm(null);
+        },
+        onError: () => toast.error('Remove failed'),
+    });
+
+    // ── Items tab handlers ───────────────────────────────────────────────
     const openNew = () => {
         setEditing(null); setForm({ ...EMPTY_FORM }); setShowForm(true);
     };
@@ -123,6 +183,11 @@ export default function Inventory() {
                 {activeTab === 'items' && (
                     <button onClick={openNew} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-medium hover:opacity-90 shadow-md">
                         <Plus className="w-4 h-4" /> Add Item
+                    </button>
+                )}
+                {activeTab === 'records' && (
+                    <button onClick={() => setAddAssetModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-medium hover:opacity-90 shadow-md">
+                        <Plus className="w-4 h-4" /> Add Asset to Inventory
                     </button>
                 )}
             </div>
@@ -238,7 +303,7 @@ export default function Inventory() {
                 </div>
             )}
 
-            {/* Legacy Asset Records Table */}
+            {/* Legacy Asset Records Table (Fix 2: add action column) */}
             {activeTab === 'records' && (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                     <table className="w-full">
@@ -251,12 +316,18 @@ export default function Inventory() {
                                 <th className="px-5 py-3 text-center text-xs font-semibold text-slate-500 uppercase">Max</th>
                                 <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
                                 <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Last Audit</th>
+                                <th className="px-5 py-3 text-center text-xs font-semibold text-slate-500 uppercase">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {legacyLoading ? Array.from({ length: 8 }).map((_, i) => (
-                                <tr key={i}><td colSpan={7} className="px-5 py-4"><div className="h-4 bg-slate-100 rounded animate-pulse"></div></td></tr>
-                            )) : filteredLegacy.map((r: any) => {
+                                <tr key={i}><td colSpan={8} className="px-5 py-4"><div className="h-4 bg-slate-100 rounded animate-pulse"></div></td></tr>
+                            )) : filteredLegacy.length === 0 ? (
+                                <tr><td colSpan={8} className="px-5 py-12 text-center text-slate-400">
+                                    <Package className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                                    No asset records in inventory. Click "Add Asset to Inventory" to get started.
+                                </td></tr>
+                            ) : filteredLegacy.map((r: any) => {
                                 const isLow = r.quantity <= r.minStockLevel;
                                 const isOut = r.quantity === 0;
                                 return (
@@ -277,6 +348,24 @@ export default function Inventory() {
                                         <td className="px-5 py-3 text-sm text-slate-500">
                                             {r.lastAuditDate ? new Date(r.lastAuditDate).toLocaleDateString('en-IN') : '—'}
                                         </td>
+                                        <td className="px-5 py-3">
+                                            <div className="flex items-center justify-center gap-1">
+                                                <button
+                                                    onClick={() => { setAdjustModal({ record: r }); setAdjustQty(r.quantity); setAdjustNotes(''); }}
+                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                                                    title="Adjust stock"
+                                                >
+                                                    <Pencil className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => setRemoveRecordConfirm(r.id)}
+                                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                                    title="Remove from inventory"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 );
                             })}
@@ -284,6 +373,8 @@ export default function Inventory() {
                     </table>
                 </div>
             )}
+
+            {/* ═══════ ITEMS TAB MODALS ═══════ */}
 
             {/* Add/Edit Item Modal */}
             {showForm && (
@@ -360,7 +451,7 @@ export default function Inventory() {
                 </div>
             )}
 
-            {/* Delete Confirmation */}
+            {/* Delete Item Confirmation */}
             {deleteConfirm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-fade-in mx-4">
@@ -370,6 +461,112 @@ export default function Inventory() {
                             <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm">Cancel</button>
                             <button onClick={() => deleteMutation.mutate(deleteConfirm)}
                                 className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══════ RECORDS TAB MODALS (Fix 2) ═══════ */}
+
+            {/* Add Asset to Inventory Modal */}
+            {addAssetModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-fade-in mx-4">
+                        <div className="flex items-center justify-between mb-5">
+                            <h2 className="text-lg font-bold text-slate-900">Add Asset to Inventory</h2>
+                            <button onClick={() => setAddAssetModal(false)} className="p-2 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Asset *</label>
+                                <select value={addAssetId} onChange={e => setAddAssetId(e.target.value)}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/30 focus:outline-none">
+                                    <option value="">— Select Asset —</option>
+                                    {(assetsData || []).map((a: any) => (
+                                        <option key={a.id} value={a.id}>{a.name} ({a.assetCode})</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Branch *</label>
+                                <select value={addBranchId} onChange={e => setAddBranchId(e.target.value)}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/30 focus:outline-none">
+                                    <option value="">— Select Branch —</option>
+                                    {(branchesData || []).map((b: any) => (
+                                        <option key={b.id} value={b.id}>{b.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Initial Quantity</label>
+                                <input type="number" min={1} value={addQuantity} onChange={e => setAddQuantity(parseInt(e.target.value) || 1)}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/30 focus:outline-none" />
+                            </div>
+                            <button
+                                onClick={() => {
+                                    if (!addAssetId || !addBranchId) return toast.error('Please select an asset and branch');
+                                    addToInventoryMutation.mutate({ assetId: addAssetId, branchId: addBranchId, quantity: addQuantity });
+                                }}
+                                disabled={addToInventoryMutation.isPending}
+                                className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-medium hover:opacity-90 shadow-md disabled:opacity-50"
+                            >
+                                {addToInventoryMutation.isPending ? 'Adding...' : 'Add to Inventory'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Adjust Stock Modal */}
+            {adjustModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-fade-in mx-4">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-base font-bold text-slate-900">Adjust Stock — {adjustModal.record.asset?.name}</h2>
+                            <button onClick={() => setAdjustModal(null)} className="p-2 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button>
+                        </div>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-xs text-slate-500 mb-1 block">New Quantity</label>
+                                <input type="number" min={0} value={adjustQty}
+                                    onChange={e => setAdjustQty(Number(e.target.value))}
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500/30 focus:outline-none" />
+                            </div>
+                            <div>
+                                <label className="text-xs text-slate-500 mb-1 block">Notes (optional)</label>
+                                <input type="text" value={adjustNotes}
+                                    onChange={e => setAdjustNotes(e.target.value)}
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
+                                    placeholder="Reason for adjustment..." />
+                            </div>
+                            <button
+                                onClick={() => adjustMutation.mutate({ id: adjustModal.record.id, quantity: adjustQty, notes: adjustNotes })}
+                                disabled={adjustMutation.isPending}
+                                className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-medium hover:opacity-90 shadow-md disabled:opacity-50"
+                            >
+                                {adjustMutation.isPending ? 'Saving...' : 'Save'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Remove Record Confirm Modal */}
+            {removeRecordConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-fade-in mx-4 text-center">
+                        <p className="text-slate-700 font-medium mb-2">Remove this asset from inventory records?</p>
+                        <p className="text-slate-400 text-sm mb-5">This action cannot be undone.</p>
+                        <div className="flex gap-3 justify-center">
+                            <button onClick={() => setRemoveRecordConfirm(null)}
+                                className="px-4 py-2 border border-slate-200 rounded-lg text-sm">Cancel</button>
+                            <button
+                                onClick={() => removeFromInventoryMutation.mutate(removeRecordConfirm)}
+                                disabled={removeFromInventoryMutation.isPending}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-50"
+                            >
+                                {removeFromInventoryMutation.isPending ? 'Removing...' : 'Remove'}
+                            </button>
                         </div>
                     </div>
                 </div>

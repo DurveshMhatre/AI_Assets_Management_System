@@ -5,6 +5,7 @@ import multer from 'multer';
 import path from 'path';
 import ExcelJS from 'exceljs';
 import Fuse from 'fuse.js';
+import { generateCodePrefix } from '../utils/assetHelpers';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -34,7 +35,7 @@ interface FieldConfig {
 }
 
 const FIELD_DICTIONARY: Record<string, FieldConfig> = {
-    assetName:    { keywords: ['asset name', 'name', 'asset', 'item name', 'item', 'title', 'description'], priority: 1, required: true, narrowVision: true },
+    assetName:    { keywords: ['asset name', 'name', 'asset', 'item name', 'item', 'title'], priority: 1, required: true, narrowVision: true },
     serialNumber: { keywords: ['serial number', 'serial no', 'serial', 's/n', 'sn', 'id', 'identifier', 'code'], priority: 1, required: true, narrowVision: true },
     brand:        { keywords: ['brand', 'brand name', 'manufacturer', 'make', 'vendor', 'company'], priority: 2, required: false, narrowVision: false },
     supplier:     { keywords: ['supplier', 'supplier name', 'vendor', 'vendor name', 'seller', 'provider', 'source'], priority: 2, required: false, narrowVision: false },
@@ -44,13 +45,14 @@ const FIELD_DICTIONARY: Record<string, FieldConfig> = {
     city:         { keywords: ['city', 'supplier city', 'location city'], priority: 4, required: false, narrowVision: false },
     pincode:      { keywords: ['pincode', 'pin code', 'zip', 'zip code', 'postal code'], priority: 4, required: false, narrowVision: false },
     branch:       { keywords: ['branch', 'location', 'sub location', 'department', 'site', 'office', 'place'], priority: 3, required: false, narrowVision: false },
-    assetType:    { keywords: ['asset type', 'type', 'category', 'classification', 'class', 'group'], priority: 2, required: false, narrowVision: false },
+    assetType:    { keywords: ['asset type', 'asset group', 'type', 'category', 'asset category', 'classification', 'class', 'group', 'item group', 'item type'], priority: 2, required: false, narrowVision: false },
     purchaseDate: { keywords: ['purchase date', 'buy date', 'acquisition date', 'date of purchase', 'date', 'acquired', 'bought'], priority: 1, required: true, narrowVision: true, dataType: 'date' },
     purchasePrice:{ keywords: ['purchase price', 'cost', 'price', 'amount', 'value', 'cost price', 'purchase'], priority: 1, required: true, narrowVision: true, dataType: 'currency' },
     quantity:     { keywords: ['quantity', 'qty', 'count', 'units', 'stock'], priority: 3, required: false, narrowVision: false, dataType: 'number' },
     description:  { keywords: ['description', 'details', 'remarks', 'notes'], priority: 3, required: false, narrowVision: false },
     status:       { keywords: ['status', 'condition', 'state', 'asset status', 'active'], priority: 3, required: false, narrowVision: false },
-    warrantyExpiry:{ keywords: ['warranty expiry', 'warranty', 'warranty date', 'expiry date', 'warranty end'], priority: 3, required: false, narrowVision: false, dataType: 'date' },
+    warrantyExpiry:{ keywords: ['warranty expiry', 'warranty date', 'warranty end date', 'expiry date', 'warranty until', 'warranty end'], priority: 3, required: false, narrowVision: false, dataType: 'date' },
+    warrantyMonths:{ keywords: ['warranty', 'warranty months', 'warranty period', 'warranty (months)', 'warranty_months'], priority: 3, required: false, narrowVision: false, dataType: 'number' },
     usefulLife:   { keywords: ['useful life', 'life years', 'asset life', 'depreciation years', 'years', 'duration', 'period'], priority: 4, required: false, narrowVision: false, dataType: 'number' },
     salvageValue: { keywords: ['salvage value', 'residual value', 'scrap value', 'salvage', 'residual', 'scrap', 'end'], priority: 4, required: false, narrowVision: false, dataType: 'currency' },
     depMethod:    { keywords: ['depreciation method', 'dep method', 'method'], priority: 4, required: false, narrowVision: false },
@@ -269,6 +271,63 @@ function mapColumns(headers: string[]): Record<string, string> {
     return mapping;
 }
 
+// ─── WARRANTY DATE RESOLVER (Fix 6) ─────────────────────────────────────────
+
+/**
+ * Computes warrantyExpiryDate from whatever warranty data is available.
+ * Priority:
+ *   1. If warrantyExpiry cell has a real Date object → use it directly
+ *   2. If warrantyExpiry cell has a numeric Excel serial → convert via Excel epoch
+ *   3. If warrantyExpiry is a parseable date string (not a formula) → parse it
+ *   4. If warrantyMonths is a plain integer and purchaseDate is known → purchaseDate + N months
+ *   5. Return null (never fall back to a hardcoded date)
+ */
+function resolveWarrantyDate(
+    warrantyExpiryRaw: string,
+    warrantyMonthsRaw: string,
+    purchaseDateRaw: string,
+    row: ExcelJS.Row,
+    warrantyExpiryColIdx: number,
+    warrantyMonthsColIdx: number
+): Date | null {
+    // Attempt 1: Get the actual cell value (not the formula string) from ExcelJS
+    if (warrantyExpiryColIdx >= 0) {
+        const cell = row.getCell(warrantyExpiryColIdx + 1);
+        const cellVal = cell.value;
+
+        // ExcelJS gives computed Date object for formula cells when fullCalc is on
+        if (cellVal instanceof Date && !isNaN(cellVal.getTime())) {
+            return cellVal;
+        }
+        // Numeric Excel serial date (e.g., 45291)
+        if (typeof cellVal === 'number' && cellVal > 1000) {
+            const excelEpoch = new Date(1899, 11, 30);
+            const d = new Date(excelEpoch.getTime() + cellVal * 86400000);
+            if (!isNaN(d.getTime())) return d;
+        }
+    }
+
+    // Attempt 2: Parse warrantyExpiry as a date string (non-formula case)
+    if (warrantyExpiryRaw && !warrantyExpiryRaw.startsWith('=')) {
+        const parsed = new Date(warrantyExpiryRaw);
+        if (!isNaN(parsed.getTime())) return parsed;
+    }
+
+    // Attempt 3: Calculate from purchase date + warranty months
+    const months = parseInt(warrantyMonthsRaw);
+    if (!isNaN(months) && months > 0 && purchaseDateRaw) {
+        const pd = new Date(purchaseDateRaw);
+        if (!isNaN(pd.getTime())) {
+            const result = new Date(pd);
+            result.setMonth(result.getMonth() + months);
+            return result;
+        }
+    }
+
+    // Nothing worked — return null, never a hardcoded fallback
+    return null;
+}
+
 // ─── ROUTES ─────────────────────────────────────────────────────────────────────
 
 // ── POST /analyze — Intelligent mapping with confidence ──────────────────────
@@ -421,7 +480,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequ
 
         // Parse Excel
         const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.readFile(req.file.path);
+        await workbook.xlsx.readFile(req.file.path, { calcProperties: { fullCalcOnLoad: true } } as any);
         const worksheet = workbook.worksheets[0];
 
         if (!worksheet || worksheet.rowCount < 2) {
@@ -529,27 +588,58 @@ router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequ
                     branchId = branch.id;
                 }
 
-                // FindOrCreate AssetType
+                // FindOrCreate AssetType (Fix 7: case-insensitive + fuzzy matching)
                 let assetTypeId: string | null = null;
                 const typeName = getCellValue('assetType');
                 if (typeName) {
-                    let atype = await prisma.assetType.findFirst({ where: { name: typeName, organizationId: orgId } });
+                    // Fetch all types once and match in JS (SQLite doesn't support mode:'insensitive')
+                    const allTypes = await prisma.assetType.findMany({ where: { organizationId: orgId } });
+
+                    // First try case-insensitive exact match
+                    let atype = allTypes.find(t =>
+                        t.name.toLowerCase() === typeName.toLowerCase()
+                    ) || null;
+
+                    // If no exact match, try fuzzy matching (handles "office Equipment" → "Office Equipments")
+                    if (!atype) {
+                        atype = allTypes.find(t =>
+                            t.name.toLowerCase().replace(/s$/, '') === typeName.toLowerCase().replace(/s$/, '') ||
+                            t.name.toLowerCase().includes(typeName.toLowerCase()) ||
+                            typeName.toLowerCase().includes(t.name.toLowerCase())
+                        ) || null;
+                    }
+
+                    // If still no match, create new type dynamically
                     if (!atype) {
                         const depMethodVal = getCellValue('depMethod') || 'STRAIGHT_LINE';
                         const usefulLife = parseInt(getCellValue('usefulLife')) || 5;
                         const salvagePercent = parseFloat(getCellValue('salvageValue')) || 10;
+                        const prefix = generateCodePrefix(typeName);
                         atype = await prisma.assetType.create({
-                            data: { name: typeName, depreciationMethod: depMethodVal, usefulLifeYears: usefulLife, salvageValuePercent: salvagePercent, organizationId: orgId }
+                            data: {
+                                name: typeName,
+                                depreciationMethod: depMethodVal,
+                                usefulLifeYears: usefulLife,
+                                salvageValuePercent: salvagePercent,
+                                codePrefix: prefix,
+                                status: 'approved',
+                                organizationId: orgId
+                            }
                         });
                         typesCreated++;
                     }
                     assetTypeId = atype.id;
                 }
 
-                // Create Asset
-                const count = await prisma.asset.count({ where: { organizationId: orgId } });
-                const assetCode = `AST-${String(count + 1).padStart(5, '0')}`;
+                // Create Asset (Fix 4: use type-specific prefix for asset code)
                 const purchasePrice = parseFloat(getCellValue('purchasePrice')) || 0;
+                let assetCodePrefix = 'AST';
+                if (assetTypeId) {
+                    const atypeForPrefix = await prisma.assetType.findUnique({ where: { id: assetTypeId } });
+                    if (atypeForPrefix?.codePrefix) assetCodePrefix = atypeForPrefix.codePrefix;
+                }
+                const typeCount = await prisma.asset.count({ where: { organizationId: orgId, assetTypeId: assetTypeId || undefined } });
+                const assetCode = `${assetCodePrefix}-${String(typeCount + 1).padStart(5, '0')}`;
 
                 const asset = await prisma.asset.create({
                     data: {
@@ -561,7 +651,14 @@ router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequ
                         purchaseDate: getCellValue('purchaseDate') ? new Date(getCellValue('purchaseDate')) : null,
                         purchasePrice,
                         currentValue: purchasePrice,
-                        warrantyExpiryDate: getCellValue('warrantyExpiry') ? new Date(getCellValue('warrantyExpiry')) : null,
+                        warrantyExpiryDate: resolveWarrantyDate(
+                            getCellValue('warrantyExpiry'),
+                            getCellValue('warrantyMonths'),
+                            getCellValue('purchaseDate'),
+                            row,
+                            getFieldIndex('warrantyExpiry'),
+                            getFieldIndex('warrantyMonths')
+                        ),
                         branchId,
                         brandId,
                         supplierId,

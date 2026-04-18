@@ -5,12 +5,46 @@ import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+// PUBLIC — no auth — used by QR scan (Fix 1B)
+router.get('/public/:id', async (req, res: Response) => {
+    try {
+        const asset = await prisma.asset.findUnique({
+            where: { id: req.params.id },
+            select: {
+                id: true, assetCode: true, name: true, description: true,
+                serialNumber: true, status: true, purchaseDate: true,
+                warrantyExpiryDate: true, location: true,
+                assetType:  { select: { name: true } },
+                brand:      { select: { name: true } },
+                branch:     { select: { name: true, city: true } },
+                assignedTo: { select: { name: true } },
+            }
+        });
+        if (!asset) return res.status(404).json({ success: false, error: 'Asset not found' });
+        res.json({ success: true, data: asset });
+    } catch {
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
 router.use(authenticate);
 
-// Generate asset code
-const generateAssetCode = async (orgId: string): Promise<string> => {
-    const count = await prisma.asset.count({ where: { organizationId: orgId } });
-    return `AST-${String(count + 1).padStart(5, '0')}`;
+// Generate asset code (Fix 4: type-specific prefix)
+const generateAssetCode = async (orgId: string, assetTypeId?: string | null): Promise<string> => {
+    let prefix = 'AST';
+    if (assetTypeId) {
+        const atype = await prisma.assetType.findUnique({ where: { id: assetTypeId } });
+        if (atype?.codePrefix) prefix = atype.codePrefix;
+    }
+    // Count assets of this type to get sequence number
+    const count = await prisma.asset.count({
+        where: {
+            organizationId: orgId,
+            assetTypeId: assetTypeId || undefined,
+        }
+    });
+    return `${prefix}-${String(count + 1).padStart(5, '0')}`;
 };
 
 // Auto-generate full depreciation schedule for an asset
@@ -175,8 +209,8 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 router.post('/', async (req: AuthRequest, res: Response) => {
     try {
         const orgId = req.user!.organizationId;
-        const assetCode = await generateAssetCode(orgId);
         const data = req.body;
+        const assetCode = await generateAssetCode(orgId, data.assetTypeId || null);
 
         const asset = await prisma.asset.create({
             data: {
@@ -408,6 +442,13 @@ router.post('/bulk-delete', async (req: AuthRequest, res: Response) => {
         }
 
         // Delete related records first, then assets
+        const qrCodes = await prisma.qRCode.findMany({ where: { assetId: { in: validIds } }, select: { id: true } });
+        const qrCodeIds = qrCodes.map(q => q.id);
+        if (qrCodeIds.length > 0) {
+            await prisma.qRApprovalLog.deleteMany({ where: { qrCodeId: { in: qrCodeIds } } });
+            await prisma.qRCode.deleteMany({ where: { id: { in: qrCodeIds } } });
+        }
+
         await prisma.depreciationSchedule.deleteMany({ where: { assetId: { in: validIds } } });
         await prisma.maintenanceLog.deleteMany({ where: { assetId: { in: validIds } } });
         await prisma.inventoryRecord.deleteMany({ where: { assetId: { in: validIds } } });
@@ -424,7 +465,13 @@ router.post('/bulk-delete', async (req: AuthRequest, res: Response) => {
 // Delete asset
 router.delete('/:id', async (req: AuthRequest, res: Response) => {
     try {
-        // Delete related records first
+        // Delete related QR approval logs
+        const qrCode = await prisma.qRCode.findUnique({ where: { assetId: req.params.id }, select: { id: true } });
+        if (qrCode) {
+            await prisma.qRApprovalLog.deleteMany({ where: { qrCodeId: qrCode.id } });
+            await prisma.qRCode.delete({ where: { id: qrCode.id } });
+        }
+
         await prisma.depreciationSchedule.deleteMany({ where: { assetId: req.params.id } });
         await prisma.maintenanceLog.deleteMany({ where: { assetId: req.params.id } });
         await prisma.inventoryRecord.deleteMany({ where: { assetId: req.params.id } });

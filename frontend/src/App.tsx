@@ -6,6 +6,7 @@ import Login from './pages/Login/Login';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Assets from './pages/Assets/AssetList';
 import AssetDetail from './pages/Assets/AssetDetail';
+import AssetScan from './pages/Assets/AssetScan';
 import BiTools from './pages/BiTools/BiTools';
 import Inventory from './pages/Inventory/Inventory';
 import Maintenance from './pages/Maintenance/Maintenance';
@@ -18,6 +19,7 @@ import Roles from './pages/Roles/Roles';
 import Settings from './pages/Settings/Settings';
 import QRApprovals from './pages/QRApprovals/QRApprovals';
 import QRTracker from './pages/QRTracker/QRTracker';
+import Users from './pages/Users/Users';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -33,6 +35,8 @@ export default function App() {
             }} />
             <Routes>
                 <Route path="/login" element={<Login />} />
+                {/* Public route for QR scan (Fix 1B) */}
+                <Route path="/scan/:id" element={<AssetScan />} />
                 <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                     <Route index element={<Navigate to="/dashboard" />} />
                     <Route path="dashboard" element={<Dashboard />} />
@@ -48,6 +52,7 @@ export default function App() {
                     <Route path="suppliers" element={<Suppliers />} />
                     <Route path="qr-tracker" element={<QRTracker />} />
                     <Route path="qr-approvals" element={<QRApprovals />} />
+                    <Route path="users" element={<Users />} />
                     <Route path="roles" element={<Roles />} />
                     <Route path="settings" element={<Settings />} />
                 </Route>

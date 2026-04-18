@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Package, Calendar, MapPin, TrendingDown, User, Tag, Shield, Download, RefreshCw, AlertTriangle, CheckCircle2, QrCode } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { ArrowLeft, Package, Calendar, MapPin, TrendingDown, User, Tag, Shield, Download, RefreshCw, AlertTriangle, CheckCircle2, QrCode, Printer } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
@@ -394,6 +395,105 @@ export default function AssetDetail() {
                             )}
                         </div>
                     )}
+
+                    {/* QR Code Tab (Fix 1A) */}
+                    {activeTab === 'qr' && (
+                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                            <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                                <QrCode className="w-5 h-5 text-indigo-600" /> QR Code
+                            </h2>
+                            {!qrData ? (
+                                <div className="text-center py-8">
+                                    <QrCode className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                                    <p className="text-slate-500 text-sm mb-4">No QR code generated yet</p>
+                                    <button onClick={() => generateQR.mutate()}
+                                        disabled={generateQR.isPending}
+                                        className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-medium hover:opacity-90 shadow-md">
+                                        {generateQR.isPending ? 'Generating...' : 'Generate QR Code'}
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-5">
+                                    {/* Scannable QR Image */}
+                                    <div className="flex flex-col items-center py-4" id="qr-print-area">
+                                        <div className="p-4 bg-white border-2 border-slate-200 rounded-xl inline-block">
+                                            <QRCodeSVG
+                                                value={`${window.location.origin}/scan/${asset.id}`}
+                                                size={200}
+                                                level="H"
+                                                includeMargin={true}
+                                            />
+                                        </div>
+                                        <p className="text-xs text-slate-400 mt-2 font-mono">{asset.assetCode}</p>
+                                        <p className="text-sm font-medium text-slate-700 mt-1">{asset.name}</p>
+                                    </div>
+
+                                    {/* Status + Actions */}
+                                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-slate-500">Status:</span>
+                                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                qrData.status === 'APPLIED' ? 'bg-emerald-100 text-emerald-700' :
+                                                qrData.status === 'APPROVED' || qrData.status === 'PRINTED' ? 'bg-blue-100 text-blue-700' :
+                                                qrData.status === 'PENDING_APPROVAL' ? 'bg-amber-100 text-amber-700' :
+                                                qrData.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                                                'bg-slate-100 text-slate-600'}`}>
+                                                {qrData.status.replace(/_/g, ' ')}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                        {qrData.status === 'DRAFT' && (
+                                            <button onClick={() => submitQR.mutate(qrData.id)}
+                                                className="flex-1 flex items-center justify-center gap-2 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700">
+                                                Submit for Approval
+                                            </button>
+                                        )}
+                                        <button onClick={() => {
+                                            const svg = document.querySelector('#qr-print-area svg');
+                                            if (!svg) return;
+                                            const svgData = new XMLSerializer().serializeToString(svg);
+                                            const blob = new Blob([svgData], { type: 'image/svg+xml' });
+                                            const url = URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url; a.download = `${asset.assetCode}_QR.svg`; a.click();
+                                            URL.revokeObjectURL(url);
+                                        }} className="flex-1 flex items-center justify-center gap-2 py-2 border border-indigo-200 text-indigo-600 rounded-lg text-sm font-medium hover:bg-indigo-50">
+                                            <Download className="w-4 h-4" /> Download SVG
+                                        </button>
+                                        <button onClick={() => {
+                                            const printArea = document.getElementById('qr-print-area');
+                                            if (!printArea) return;
+                                            const win = window.open('', '_blank');
+                                            win?.document.write(`<html><body style="display:flex;justify-content:center;align-items:center;min-height:100vh">${printArea.innerHTML}</body></html>`);
+                                            win?.document.close(); win?.print();
+                                        }} className="flex items-center justify-center gap-2 py-2 px-4 border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50">
+                                            <Printer className="w-4 h-4" /> Print
+                                        </button>
+                                    </div>
+
+                                    {/* Approval History */}
+                                    {qrData.approvalLogs?.length > 0 && (
+                                        <div className="pt-4 border-t border-slate-100">
+                                            <p className="text-xs text-slate-400 mb-2 font-medium">Approval History</p>
+                                            <div className="space-y-1.5">
+                                                {qrData.approvalLogs.map((log: any) => (
+                                                    <div key={log.id} className="flex items-center justify-between text-xs p-2 bg-slate-50 rounded-lg">
+                                                        <span className="text-slate-600 font-medium">{log.action.replace(/_/g, ' ')}</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-slate-500">{log.user?.name}</span>
+                                                            <span className="text-slate-400">{new Date(log.createdAt).toLocaleDateString('en-IN')}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Side Panel */}
@@ -468,12 +568,11 @@ export default function AssetDetail() {
 
                     {/* QR Code Panel */}
                     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-                        <div className="flex items-center gap-2 mb-3">
-                            <QrCode className="w-4 h-4 text-indigo-600" />
-                            <h3 className="text-sm font-semibold text-slate-700">QR Code Status</h3>
-                        </div>
+                        <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                            <QrCode className="w-4 h-4 text-indigo-600" /> QR Code
+                        </h3>
                         {!qrData ? (
-                            <div>
+                            <div className="text-center">
                                 <p className="text-xs text-slate-400 mb-3">No QR code generated yet</p>
                                 <button onClick={() => generateQR.mutate()}
                                     disabled={generateQR.isPending}
@@ -482,18 +581,42 @@ export default function AssetDetail() {
                                 </button>
                             </div>
                         ) : (
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs text-slate-500">Status</span>
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            <div className="space-y-3">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
                                         qrData.status === 'APPLIED' ? 'bg-emerald-100 text-emerald-700' :
                                         qrData.status === 'APPROVED' || qrData.status === 'PRINTED' ? 'bg-blue-100 text-blue-700' :
                                         qrData.status === 'PENDING_APPROVAL' ? 'bg-amber-100 text-amber-700' :
                                         qrData.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
                                         'bg-slate-100 text-slate-600'}`}>
                                         {qrData.status.replace(/_/g, ' ')}
-                                    </span>
+                                </span>
+
+                                <div className="flex justify-center p-3 bg-white border border-slate-200 rounded-xl">
+                                    <QRCodeCanvas
+                                        id={`sidebar-qr-${asset.id}`}
+                                        value={`${window.location.origin}/scan/${asset.id}`}
+                                        size={160}
+                                        level="M"
+                                        includeMargin={true}
+                                    />
                                 </div>
+
+                                {['APPROVED', 'PRINTED', 'APPLIED'].includes(qrData.status) && (
+                                    <button
+                                        onClick={() => {
+                                            const canvas = document.getElementById(`sidebar-qr-${asset.id}`) as HTMLCanvasElement | null;
+                                            if (!canvas) return;
+                                            const link = document.createElement('a');
+                                            link.download = `QR_${asset.assetCode}.png`;
+                                            link.href = canvas.toDataURL('image/png');
+                                            link.click();
+                                        }}
+                                        className="w-full py-2 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700"
+                                    >
+                                        Download QR PNG
+                                    </button>
+                                )}
+
                                 {qrData.status === 'DRAFT' && (
                                     <button onClick={() => submitQR.mutate(qrData.id)}
                                         className="w-full py-2 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 mt-2">

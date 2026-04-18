@@ -73,4 +73,18 @@ router.post('/manual', manualUpload.single('file'), async (req: AuthRequest, res
     }
 });
 
+// ── Branches (for dropdowns across the app) ──────────────────────────────
+router.get('/branches', async (req: AuthRequest, res: Response) => {
+    try {
+        const branches = await prisma.branch.findMany({
+            where: { organizationId: req.user!.organizationId },
+            orderBy: { name: 'asc' },
+            select: { id: true, name: true, city: true, pincode: true },
+        });
+        res.json({ success: true, data: branches });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
 export default router;

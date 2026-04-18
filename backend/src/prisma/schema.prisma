@@ -108,6 +108,7 @@ model AssetType {
   usefulLifeYears        Int       @default(5)
   salvageValuePercent    Float     @default(10)
   annualDepreciationRate Float?
+  codePrefix             String?
   status                 String    @default("approved")
   rejectionReason        String?
   createdById            String?

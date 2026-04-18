@@ -1,5 +1,3 @@
-
-### ASSISTANT
 # 🚀 AMS-AI-System Enhancement Implementation Prompt
 
 ---
