@@ -25,22 +25,33 @@ import unitReportRoutes from './routes/unitReports';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(helmet({ crossOriginResourcePolicy: false }));
+// Middleware - CORS must be BEFORE helmet
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
     .split(',')
     .map(s => s.trim().replace(/\/$/, '')); // remove trailing slashes
 
-app.use(cors({ 
-    origin: function(origin, callback) {
+console.log('Allowed CORS origins:', allowedOrigins);
+
+const corsOptions = {
+    origin: function(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
         if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
             callback(null, true);
         } else {
+            console.log('CORS blocked origin:', origin);
             callback(new Error('Not allowed by CORS'));
         }
-    }, 
-    credentials: true 
-}));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight OPTIONS for all routes
+app.options('*', cors(corsOptions));
+
+app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
