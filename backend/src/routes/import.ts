@@ -1,6 +1,8 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { checkPermission } from '../middleware/permissions';
+import { PERMISSIONS } from '../constants/permissions';
 import multer from 'multer';
 import path from 'path';
 import ExcelJS from 'exceljs';
@@ -461,7 +463,7 @@ router.get('/stats', authenticate, async (req: AuthRequest, res: Response) => {
 });
 
 // ── POST /upload — Upload and import Excel ───────────────────────────────────
-router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequest, res: Response) => {
+router.post('/upload', authenticate, checkPermission(PERMISSIONS.IMPORT_DATA), upload.single('file'), async (req: AuthRequest, res: Response) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
 
@@ -544,9 +546,9 @@ router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequ
                 let brandId: string | null = null;
                 const brandName = getCellValue('brand');
                 if (brandName) {
-                    let brand = await prisma.brand.findFirst({ where: { name: brandName, organizationId: orgId } });
+                    let brand = await prisma.brand.findFirst({ where: { nameLower: brandName.toLowerCase(), organizationId: orgId } });
                     if (!brand) {
-                        brand = await prisma.brand.create({ data: { name: brandName, organizationId: orgId } });
+                        brand = await prisma.brand.create({ data: { name: brandName, nameLower: brandName.toLowerCase(), organizationId: orgId } });
                         brandsCreated++;
                     }
                     brandId = brand.id;
@@ -563,6 +565,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequ
                         supplier = await prisma.supplier.create({
                             data: {
                                 companyName: supplierName,
+                                companyNameLower: supplierName.toLowerCase(),
                                 email: getCellValue('supplierEmail') || null,
                                 phone: getCellValue('supplierPhone') || null,
                                 address: getCellValue('supplierAddress') || null,
@@ -669,13 +672,12 @@ router.post('/upload', authenticate, upload.single('file'), async (req: AuthRequ
                     }
                 });
 
-                // Create inventory record
+                // Create inventory record (quantity is on Asset now)
                 if (branchId) {
                     await prisma.inventoryRecord.create({
                         data: {
                             assetId: asset.id,
                             branchId,
-                            quantity: parseInt(getCellValue('quantity')) || 1,
                             minStockLevel: 1,
                             maxStockLevel: 100
                         }

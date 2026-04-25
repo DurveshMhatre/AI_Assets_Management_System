@@ -46,6 +46,40 @@ export default function Header({ onToggleSidebar }: Props) {
         }
     });
 
+    const { data: notifData } = useQuery({
+        queryKey: ['report-notifications'],
+        queryFn: () => api.get('/unit-reports/notifications/list').then(r => r.data.data),
+        refetchInterval: 30000, // poll every 30s
+    });
+
+    const markReadMutation = useMutation({
+        mutationFn: (id: string) => api.put(`/unit-reports/notifications/${id}/read`),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-notifications'] }),
+    });
+
+    const markAllReadMutation = useMutation({
+        mutationFn: () => api.put('/unit-reports/notifications/read-all'),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-notifications'] }),
+    });
+
+    const unreadCount = notifData?.unreadCount || 0;
+    const notifications = notifData?.notifications || [];
+
+    const handleNotifClick = (n: any) => {
+        if (!n.isRead) markReadMutation.mutate(n.id);
+        setShowNotifications(false);
+        navigate(n.type === 'REPORT_PENDING' ? '/approvals' : '/unit-reports');
+    };
+
+    const notifTypeLabel = (type: string) => {
+        switch (type) {
+            case 'REPORT_PENDING': return '📋 New report awaiting approval';
+            case 'REPORT_APPROVED': return '✅ Your report was approved';
+            case 'REPORT_REJECTED': return '❌ Your report was rejected';
+            default: return 'Notification';
+        }
+    };
+
     const handleLogout = () => {
         logout();
         navigate('/login');
@@ -84,7 +118,11 @@ export default function Header({ onToggleSidebar }: Props) {
                         onClick={() => setShowNotifications(!showNotifications)}
                     >
                         <Bell className="w-5 h-5 text-slate-600" />
-                        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                        {unreadCount > 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full text-[10px] text-white font-bold flex items-center justify-center px-1">
+                                {unreadCount > 99 ? '99+' : unreadCount}
+                            </span>
+                        )}
                     </button>
 
                     <button
@@ -138,12 +176,37 @@ export default function Header({ onToggleSidebar }: Props) {
                 <div className="fixed top-16 right-6 z-40 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 py-3 animate-fade-in">
                     <div className="px-4 pb-2 border-b border-slate-100 flex items-center justify-between">
                         <p className="text-sm font-semibold text-slate-800">Notifications</p>
-                        <button onClick={() => setShowNotifications(false)} className="text-xs text-slate-500 hover:text-slate-700">
-                            Close
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {unreadCount > 0 && (
+                                <button onClick={() => markAllReadMutation.mutate()} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+                                    Mark all read
+                                </button>
+                            )}
+                            <button onClick={() => setShowNotifications(false)} className="text-xs text-slate-500 hover:text-slate-700">
+                                Close
+                            </button>
+                        </div>
                     </div>
-                    <div className="max-h-64 overflow-y-auto px-4 pt-2 pb-3">
-                        <p className="text-xs text-slate-500">No new notifications right now. Warranty alerts and low stock warnings will appear here in the future.</p>
+                    <div className="max-h-80 overflow-y-auto">
+                        {notifications.length === 0 ? (
+                            <div className="px-4 py-6 text-center text-xs text-slate-400">
+                                No notifications yet
+                            </div>
+                        ) : notifications.map((n: any) => (
+                            <button
+                                key={n.id}
+                                onClick={() => handleNotifClick(n)}
+                                className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-50 ${
+                                    !n.isRead ? 'bg-indigo-50/50' : ''
+                                }`}
+                            >
+                                <p className="text-sm text-slate-700">{notifTypeLabel(n.type)}</p>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                    {n.report?.unit?.name} · {new Date(n.createdAt).toLocaleDateString('en-IN')}
+                                </p>
+                                {!n.isRead && <span className="inline-block w-2 h-2 bg-indigo-500 rounded-full mt-1"></span>}
+                            </button>
+                        ))}
                     </div>
                 </div>
             )}

@@ -1,6 +1,8 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { checkPermission } from '../middleware/permissions';
+import { PERMISSIONS } from '../constants/permissions';
 import { generateCodePrefix } from '../utils/assetHelpers';
 
 const router = Router();
@@ -72,7 +74,7 @@ router.get('/pending', async (req: AuthRequest, res: Response) => {
 });
 
 // ── POST / — Create asset type (auto-approved for ADMIN/MANAGER) ────────
-router.post('/', async (req: AuthRequest, res: Response) => {
+router.post('/', checkPermission(PERMISSIONS.MANAGE_ASSET_TYPES), async (req: AuthRequest, res: Response) => {
     try {
         const role = req.user!.role;
         const autoApprove = role === 'ADMIN' || role === 'MANAGER';
@@ -139,7 +141,7 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
 });
 
 // ── PUT /:id — Update type ──────────────────────────────────────────────
-router.put('/:id', async (req: AuthRequest, res: Response) => {
+router.put('/:id', checkPermission(PERMISSIONS.MANAGE_ASSET_TYPES), async (req: AuthRequest, res: Response) => {
     try {
         const { name, description, depreciationMethod, usefulLifeYears, salvageValuePercent, brandId, codePrefix } = req.body;
 
@@ -219,7 +221,7 @@ router.put('/:id/reject', async (req: AuthRequest, res: Response) => {
 });
 
 // ── DELETE /:id — Delete type ───────────────────────────────────────────
-router.delete('/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/:id', checkPermission(PERMISSIONS.MANAGE_ASSET_TYPES), async (req: AuthRequest, res: Response) => {
     try {
         const count = await prisma.asset.count({ where: { assetTypeId: req.params.id } });
         if (count > 0) return res.status(400).json({ success: false, error: `Cannot delete: ${count} assets linked` });

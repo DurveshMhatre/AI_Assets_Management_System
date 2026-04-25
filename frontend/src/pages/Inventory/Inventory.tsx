@@ -118,6 +118,7 @@ export default function Inventory() {
         onSuccess: () => {
             toast.success('Stock updated!');
             queryClient.invalidateQueries({ queryKey: ['inventory'] });
+            queryClient.invalidateQueries({ queryKey: ['assets'] });
             setAdjustModal(null);
         },
         onError: () => toast.error('Adjust failed'),

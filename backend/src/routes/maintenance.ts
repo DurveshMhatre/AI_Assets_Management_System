@@ -1,13 +1,15 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { checkPermission } from '../middleware/permissions';
+import { PERMISSIONS } from '../constants/permissions';
 
 const router = Router();
 const prisma = new PrismaClient();
 router.use(authenticate);
 
 // List maintenance logs
-router.get('/', async (req: AuthRequest, res: Response) => {
+router.get('/', checkPermission(PERMISSIONS.VIEW_MAINTENANCE), async (req: AuthRequest, res: Response) => {
     try {
         const orgId = req.user!.organizationId;
         const status = req.query.status as string;
@@ -31,7 +33,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 });
 
 // Create maintenance log
-router.post('/', async (req: AuthRequest, res: Response) => {
+router.post('/', checkPermission(PERMISSIONS.EDIT_MAINTENANCE), async (req: AuthRequest, res: Response) => {
     try {
         const data = req.body;
         if (!data.assetId || !data.type || !data.scheduledDate) {
@@ -60,7 +62,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 });
 
 // Update maintenance log
-router.put('/:id', async (req: AuthRequest, res: Response) => {
+router.put('/:id', checkPermission(PERMISSIONS.EDIT_MAINTENANCE), async (req: AuthRequest, res: Response) => {
     try {
         const existing = await prisma.maintenanceLog.findFirst({
             where: { id: req.params.id, organizationId: req.user!.organizationId }
@@ -89,7 +91,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Complete maintenance
-router.post('/:id/complete', async (req: AuthRequest, res: Response) => {
+router.post('/:id/complete', checkPermission(PERMISSIONS.EDIT_MAINTENANCE), async (req: AuthRequest, res: Response) => {
     try {
         const existing = await prisma.maintenanceLog.findFirst({
             where: { id: req.params.id, organizationId: req.user!.organizationId }
@@ -121,7 +123,7 @@ router.post('/:id/complete', async (req: AuthRequest, res: Response) => {
 });
 
 // Delete maintenance log
-router.delete('/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/:id', checkPermission(PERMISSIONS.EDIT_MAINTENANCE), async (req: AuthRequest, res: Response) => {
     try {
         const log = await prisma.maintenanceLog.findFirst({
             where: { id: req.params.id, organizationId: req.user!.organizationId }

@@ -17,3 +17,14 @@ export function generateCodePrefix(name: string): string {
     // Multiple words: first letter of each
     return words.map(w => w[0]).join('').slice(0, 4);
 }
+
+/**
+ * Convert a string to Title Case.
+ * e.g. "hello world" → "Hello World", "DELL" → "Dell"
+ */
+export function toTitleCase(str: string): string {
+    return str
+        .trim()
+        .toLowerCase()
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+}

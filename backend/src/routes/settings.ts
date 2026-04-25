@@ -1,6 +1,8 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { checkPermission } from '../middleware/permissions';
+import { PERMISSIONS } from '../constants/permissions';
 import multer from 'multer';
 import path from 'path';
 
@@ -23,7 +25,7 @@ const manualUpload = multer({
     }
 });
 
-router.get('/', async (req: AuthRequest, res: Response) => {
+router.get('/', checkPermission(PERMISSIONS.VIEW_SETTINGS), async (req: AuthRequest, res: Response) => {
     try {
         const org = await prisma.organization.findUnique({ where: { id: req.user!.organizationId } });
         if (!org) return res.status(404).json({ success: false, error: 'Organization not found' });
@@ -31,7 +33,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     } catch (error) { res.status(500).json({ success: false, error: 'Server error' }); }
 });
 
-router.put('/', async (req: AuthRequest, res: Response) => {
+router.put('/', checkPermission(PERMISSIONS.EDIT_SETTINGS), async (req: AuthRequest, res: Response) => {
     try {
         const { name, address, settings } = req.body;
         const updateData: any = {};
@@ -47,7 +49,7 @@ router.put('/', async (req: AuthRequest, res: Response) => {
     } catch (error) { res.status(500).json({ success: false, error: 'Server error' }); }
 });
 
-router.post('/manual', manualUpload.single('file'), async (req: AuthRequest, res: Response) => {
+router.post('/manual', checkPermission(PERMISSIONS.EDIT_SETTINGS), manualUpload.single('file'), async (req: AuthRequest, res: Response) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
 

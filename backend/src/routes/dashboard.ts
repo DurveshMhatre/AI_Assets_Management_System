@@ -16,7 +16,7 @@ router.get('/stats', async (req: AuthRequest, res: Response) => {
             prisma.asset.count({ where: { organizationId: orgId } }),
             prisma.asset.aggregate({ where: { organizationId: orgId }, _sum: { currentValue: true } }),
             prisma.asset.count({ where: { organizationId: orgId, status: 'UNDER_MAINTENANCE' } }),
-            prisma.inventoryRecord.count({ where: { asset: { organizationId: orgId }, quantity: { lte: 5 } } }),
+            prisma.asset.count({ where: { organizationId: orgId, quantity: { lte: 5 }, status: { not: 'INACTIVE' } } }),
             prisma.asset.count({ where: { organizationId: orgId, currentValue: { lte: 0 } } }),
             prisma.asset.count({ where: { organizationId: orgId, status: 'ACTIVE' } }),
         ]);

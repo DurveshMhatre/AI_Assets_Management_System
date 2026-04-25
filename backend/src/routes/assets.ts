@@ -1,6 +1,8 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { checkPermission } from '../middleware/permissions';
+import { PERMISSIONS } from '../constants/permissions';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
@@ -121,7 +123,7 @@ async function generateDepreciationSchedule(assetId: string) {
 }
 
 // List assets (paginated, filterable, sortable)
-router.get('/', async (req: AuthRequest, res: Response) => {
+router.get('/', checkPermission(PERMISSIONS.VIEW_ASSETS), async (req: AuthRequest, res: Response) => {
     try {
         const orgId = req.user!.organizationId;
         const page = parseInt(req.query.page as string) || 1;
@@ -177,7 +179,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 });
 
 // Get single asset
-router.get('/:id', async (req: AuthRequest, res: Response) => {
+router.get('/:id', checkPermission(PERMISSIONS.VIEW_ASSETS), async (req: AuthRequest, res: Response) => {
     try {
         const asset = await prisma.asset.findUnique({
             where: { id: req.params.id },
@@ -206,7 +208,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Create asset
-router.post('/', async (req: AuthRequest, res: Response) => {
+router.post('/', checkPermission(PERMISSIONS.EDIT_ASSETS), async (req: AuthRequest, res: Response) => {
     try {
         const orgId = req.user!.organizationId;
         const data = req.body;
@@ -252,7 +254,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 });
 
 // Update asset
-router.put('/:id', async (req: AuthRequest, res: Response) => {
+router.put('/:id', checkPermission(PERMISSIONS.EDIT_ASSETS), async (req: AuthRequest, res: Response) => {
     try {
         const data = req.body;
         const updateData: any = {};
@@ -421,7 +423,7 @@ router.get('/:id/depreciation-chart', async (req: AuthRequest, res: Response) =>
 });
 
 // Bulk delete assets
-router.post('/bulk-delete', async (req: AuthRequest, res: Response) => {
+router.post('/bulk-delete', checkPermission(PERMISSIONS.DELETE_ASSETS), async (req: AuthRequest, res: Response) => {
     try {
         const { ids } = req.body;
         if (!ids || !Array.isArray(ids) || ids.length === 0) {
@@ -445,7 +447,6 @@ router.post('/bulk-delete', async (req: AuthRequest, res: Response) => {
         const qrCodes = await prisma.qRCode.findMany({ where: { assetId: { in: validIds } }, select: { id: true } });
         const qrCodeIds = qrCodes.map(q => q.id);
         if (qrCodeIds.length > 0) {
-            await prisma.qRApprovalLog.deleteMany({ where: { qrCodeId: { in: qrCodeIds } } });
             await prisma.qRCode.deleteMany({ where: { id: { in: qrCodeIds } } });
         }
 
@@ -463,12 +464,11 @@ router.post('/bulk-delete', async (req: AuthRequest, res: Response) => {
 });
 
 // Delete asset
-router.delete('/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/:id', checkPermission(PERMISSIONS.DELETE_ASSETS), async (req: AuthRequest, res: Response) => {
     try {
-        // Delete related QR approval logs
+        // Delete related QR code
         const qrCode = await prisma.qRCode.findUnique({ where: { assetId: req.params.id }, select: { id: true } });
         if (qrCode) {
-            await prisma.qRApprovalLog.deleteMany({ where: { qrCodeId: qrCode.id } });
             await prisma.qRCode.delete({ where: { id: qrCode.id } });
         }
 

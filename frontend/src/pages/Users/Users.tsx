@@ -1,11 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users as UsersIcon, Plus, Pencil, Trash2, X, Shield, ShieldCheck, Eye, Wrench } from 'lucide-react';
+import { Users as UsersIcon, Plus, Pencil, Trash2, X, Shield, ShieldCheck, Eye, Wrench, RefreshCw } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
 
-const ROLES = [
+const LEGACY_ROLES = [
     { value: 'ADMIN', label: 'Admin', icon: ShieldCheck, color: 'bg-red-100 text-red-700' },
     { value: 'MANAGER', label: 'Manager', icon: Shield, color: 'bg-amber-100 text-amber-700' },
     { value: 'TECHNICIAN', label: 'Technician', icon: Wrench, color: 'bg-blue-100 text-blue-700' },
@@ -19,15 +19,18 @@ const EMPTY_FORM = {
 export default function Users() {
     const queryClient = useQueryClient();
     const currentUser = useAuthStore((s) => s.user);
+    const hasPermission = useAuthStore((s) => s.hasPermission);
     const [showForm, setShowForm] = useState(false);
     const [editing, setEditing] = useState<any>(null);
     const [form, setForm] = useState({ ...EMPTY_FORM });
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+    const [roleChangeUser, setRoleChangeUser] = useState<any>(null);
+    const [selectedRoleId, setSelectedRoleId] = useState('');
 
-    if (currentUser?.role !== 'ADMIN') {
+    if (!hasPermission('MANAGE_USERS')) {
         return (
             <div className="flex items-center justify-center h-64">
-                <p className="text-slate-500">Access denied. Admin only.</p>
+                <p className="text-slate-500">Access denied. Insufficient permissions.</p>
             </div>
         );
     }
@@ -36,6 +39,13 @@ export default function Users() {
         queryKey: ['users'],
         queryFn: () => api.get('/users').then(r => r.data.data),
     });
+
+    // Fetch DB roles for the "Change Role" modal
+    const { data: rolesData } = useQuery({
+        queryKey: ['roles'],
+        queryFn: () => api.get('/roles').then(r => r.data.data),
+    });
+    const dbRoles = rolesData?.roles || [];
 
     const saveMutation = useMutation({
         mutationFn: (data: any) => editing
@@ -67,6 +77,19 @@ export default function Users() {
         },
     });
 
+    const changeRoleMutation = useMutation({
+        mutationFn: ({ userId, roleId }: { userId: string; roleId: string }) =>
+            api.put(`/users/${userId}/role`, { roleId }),
+        onSuccess: () => {
+            toast.success('Role updated!');
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+            queryClient.invalidateQueries({ queryKey: ['roles'] });
+            setRoleChangeUser(null);
+            setSelectedRoleId('');
+        },
+        onError: (e: any) => toast.error(e.response?.data?.error || 'Role change failed'),
+    });
+
     const openNew = () => {
         setEditing(null); setForm({ ...EMPTY_FORM }); setShowForm(true);
     };
@@ -76,8 +99,13 @@ export default function Users() {
         setShowForm(true);
     };
 
+    const openRoleChange = (u: any) => {
+        setRoleChangeUser(u);
+        setSelectedRoleId(u.roleId || '');
+    };
+
     const getRoleBadge = (role: string) => {
-        const r = ROLES.find(x => x.value === role) || ROLES[3];
+        const r = LEGACY_ROLES.find(x => x.value === role) || LEGACY_ROLES[3];
         const Icon = r.icon;
         return (
             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${r.color}`}>
@@ -144,7 +172,20 @@ export default function Users() {
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-5 py-3">{getRoleBadge(u.role)}</td>
+                                <td className="px-5 py-3">
+                                    <div className="flex items-center gap-2">
+                                        {getRoleBadge(u.role)}
+                                        {u.id !== currentUser?.id && (
+                                            <button
+                                                onClick={() => openRoleChange(u)}
+                                                className="p-1 rounded-lg hover:bg-indigo-50 transition-colors"
+                                                title="Change role"
+                                            >
+                                                <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
+                                            </button>
+                                        )}
+                                    </div>
+                                </td>
                                 <td className="px-5 py-3 text-center">
                                     <button
                                         onClick={() => {
@@ -205,7 +246,7 @@ export default function Users() {
                             <div><label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
                                 <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
-                                    {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                                    {LEGACY_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                                 </select></div>
                             <div className="flex items-center gap-2">
                                 <input type="checkbox" id="isActive" checked={form.isActive}
@@ -218,6 +259,65 @@ export default function Users() {
                                 {saveMutation.isPending ? 'Saving...' : editing ? 'Update' : 'Create'}
                             </button>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Change Role Modal */}
+            {roleChangeUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-fade-in mx-4">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-bold">Change Role</h2>
+                            <button onClick={() => setRoleChangeUser(null)} className="p-2 rounded-lg hover:bg-slate-100">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <p className="text-sm text-slate-500 mb-4">
+                            Assign a new role to <span className="font-semibold text-slate-700">{roleChangeUser.name}</span>
+                        </p>
+                        <div className="space-y-2 mb-5">
+                            {dbRoles.map((role: any) => (
+                                <label
+                                    key={role.id}
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all ${
+                                        selectedRoleId === role.id
+                                            ? 'border-indigo-300 bg-indigo-50/60 ring-1 ring-indigo-200'
+                                            : 'border-slate-100 hover:border-slate-200'
+                                    }`}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="roleSelect"
+                                        value={role.id}
+                                        checked={selectedRoleId === role.id}
+                                        onChange={() => setSelectedRoleId(role.id)}
+                                        className="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500"
+                                    />
+                                    <div>
+                                        <p className="text-sm font-medium text-slate-700">{role.name}</p>
+                                        {role.description && <p className="text-xs text-slate-400">{role.description}</p>}
+                                        <p className="text-xs text-slate-400 mt-0.5">{role.permissions?.length || 0} permissions</p>
+                                    </div>
+                                </label>
+                            ))}
+                            {dbRoles.length === 0 && (
+                                <p className="text-sm text-slate-400 text-center py-4">No roles found. Create roles first.</p>
+                            )}
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={() => setRoleChangeUser(null)} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm">Cancel</button>
+                            <button
+                                onClick={() => {
+                                    if (!selectedRoleId) return toast.error('Please select a role');
+                                    changeRoleMutation.mutate({ userId: roleChangeUser.id, roleId: selectedRoleId });
+                                }}
+                                disabled={!selectedRoleId || changeRoleMutation.isPending}
+                                className="flex-1 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50"
+                            >
+                                {changeRoleMutation.isPending ? 'Saving...' : 'Assign Role'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

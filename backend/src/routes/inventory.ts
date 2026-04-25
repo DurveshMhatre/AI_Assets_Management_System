@@ -1,6 +1,8 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { checkPermission } from '../middleware/permissions';
+import { PERMISSIONS } from '../constants/permissions';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -10,8 +12,8 @@ router.use(authenticate);
 // LEGACY: Asset-linked InventoryRecord endpoints (kept intact)
 // ═══════════════════════════════════════════════════════════════════════════
 
-// List inventory records (asset-linked)
-router.get('/', async (req: AuthRequest, res: Response) => {
+// List inventory records (asset-linked) — reads quantity from Asset.quantity (single source of truth)
+router.get('/', checkPermission(PERMISSIONS.VIEW_INVENTORY), async (req: AuthRequest, res: Response) => {
     try {
         const orgId = req.user!.organizationId;
         const branchId = req.query.branchId as string;
@@ -21,21 +23,29 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         const records = await prisma.inventoryRecord.findMany({
             where,
             include: {
-                asset: { select: { id: true, name: true, assetCode: true, status: true } },
+                asset: { select: { id: true, name: true, assetCode: true, status: true, quantity: true, minStockLevel: true, maxStockLevel: true } },
                 branch: { select: { id: true, name: true } }
             },
             orderBy: { updatedAt: 'desc' }
         });
 
-        // Summary stats
-        const totalSkus = records.length;
-        const totalStockValue = records.reduce((sum, r) => sum + r.quantity, 0);
-        const lowStock = records.filter(r => r.quantity <= r.minStockLevel).length;
-        const outOfStock = records.filter(r => r.quantity === 0).length;
+        // Map to response shape — quantity comes from Asset, stock levels from Asset
+        const mapped = records.map(r => ({
+            ...r,
+            quantity: r.asset.quantity,
+            minStockLevel: r.asset.minStockLevel,
+            maxStockLevel: r.asset.maxStockLevel,
+        }));
+
+        // Summary stats using asset quantities
+        const totalSkus = mapped.length;
+        const totalStockValue = mapped.reduce((sum, r) => sum + r.quantity, 0);
+        const lowStock = mapped.filter(r => r.quantity > 0 && r.quantity <= r.minStockLevel).length;
+        const outOfStock = mapped.filter(r => r.quantity === 0).length;
 
         res.json({
             success: true,
-            data: records,
+            data: mapped,
             summary: { totalSkus, totalStockValue, lowStock, outOfStock }
         });
     } catch (error) {
@@ -43,24 +53,84 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     }
 });
 
-// Adjust stock (asset-linked)
-router.put('/:id/adjust', async (req: AuthRequest, res: Response) => {
+// Adjust stock (asset-linked) — now updates Asset.quantity directly + creates audit log
+router.put('/:id/adjust', checkPermission(PERMISSIONS.EDIT_INVENTORY), async (req: AuthRequest, res: Response) => {
     try {
         const { quantity, notes } = req.body;
-        const record = await prisma.inventoryRecord.update({
+        const newQuantity = parseInt(quantity);
+
+        // Get the inventory record to find the linked asset
+        const record = await prisma.inventoryRecord.findUnique({
+            where: { id: req.params.id },
+            include: { asset: { select: { id: true, quantity: true, status: true, name: true } } }
+        });
+        if (!record) return res.status(404).json({ success: false, error: 'Record not found' });
+
+        const previousQuantity = record.asset.quantity;
+
+        // Update Asset.quantity (single source of truth)
+        const assetUpdateData: any = { quantity: newQuantity };
+        if (newQuantity === 0) {
+            assetUpdateData.status = 'Out of Stock';
+        } else if (newQuantity > 0 && record.asset.status === 'Out of Stock') {
+            assetUpdateData.status = 'ACTIVE';
+        }
+
+        await prisma.asset.update({
+            where: { id: record.assetId },
+            data: assetUpdateData,
+        });
+
+        // Create QuantityAuditLog entry
+        await prisma.quantityAuditLog.create({
+            data: {
+                assetId: record.assetId,
+                changedByUserId: req.user!.id,
+                previousQuantity,
+                newQuantity,
+            },
+        });
+
+        // Update the inventory record (notes, audit info — no quantity field)
+        const updated = await prisma.inventoryRecord.update({
             where: { id: req.params.id },
             data: {
-                quantity: parseInt(quantity),
                 notes,
                 lastAuditDate: new Date(),
                 auditedBy: req.user!.name
             },
             include: {
-                asset: { select: { name: true } },
+                asset: { select: { name: true, quantity: true } },
                 branch: { select: { name: true } }
             }
         });
-        res.json({ success: true, data: record });
+
+        // Return with quantity from asset
+        res.json({ success: true, data: { ...updated, quantity: newQuantity } });
+    } catch (error) {
+        console.error('Adjust stock error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// Audit log endpoint for quantity changes
+router.get('/audit-log', checkPermission(PERMISSIONS.VIEW_INVENTORY), async (req: AuthRequest, res: Response) => {
+    try {
+        const { assetId } = req.query;
+        const where: any = {};
+        if (assetId) where.assetId = assetId as string;
+
+        const logs = await prisma.quantityAuditLog.findMany({
+            where,
+            include: {
+                asset: { select: { name: true, assetCode: true } },
+                changedBy: { select: { name: true, email: true } },
+            },
+            orderBy: { changedAt: 'desc' },
+            take: 100,
+        });
+
+        res.json({ success: true, data: logs });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Server error' });
     }
@@ -77,20 +147,27 @@ router.post('/records', async (req: AuthRequest, res: Response) => {
         if (existing) {
             return res.status(400).json({ success: false, error: 'This asset is already in inventory for this branch' });
         }
+
+        // Also update Asset.quantity when adding to inventory
+        const qty = parseInt(quantity) || 1;
+        await prisma.asset.update({
+            where: { id: assetId },
+            data: { quantity: qty },
+        });
+
         const record = await prisma.inventoryRecord.create({
             data: {
                 assetId,
                 branchId,
-                quantity: parseInt(quantity) || 1,
                 minStockLevel: 1,
                 maxStockLevel: 100,
             },
             include: {
-                asset: { select: { name: true, assetCode: true } },
+                asset: { select: { name: true, assetCode: true, quantity: true } },
                 branch: { select: { name: true } },
             }
         });
-        res.status(201).json({ success: true, data: record });
+        res.status(201).json({ success: true, data: { ...record, quantity: qty } });
     } catch (error) {
         console.error('Create inventory record error:', error);
         res.status(500).json({ success: false, error: 'Server error' });

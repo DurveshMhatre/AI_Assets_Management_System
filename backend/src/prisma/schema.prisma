@@ -13,6 +13,7 @@ model User {
   password       String
   name           String
   role           String   @default("VIEWER")
+  roleId         String?
   isActive       Boolean  @default(true)
   lastLogin      DateTime?
   organizationId String
@@ -20,6 +21,7 @@ model User {
   updatedAt      DateTime @updatedAt
 
   organization    Organization     @relation(fields: [organizationId], references: [id])
+  userRole        Role?            @relation(fields: [roleId], references: [id])
   assignedAssets  Asset[]          @relation("AssignedUser")
   maintenanceLogs MaintenanceLog[] @relation("Technician")
   documents       Document[]
@@ -27,7 +29,10 @@ model User {
   auditLogs       AuditLog[]
   createdAssetTypes  AssetType[]  @relation("AssetTypeCreator")
   reviewedAssetTypes AssetType[]  @relation("AssetTypeReviewer")
-  qrApprovalLogs  QRApprovalLog[]
+  quantityAuditLogs QuantityAuditLog[]
+  createdReports     UnitReport[]         @relation("ReportCreator")
+  approvedReports    UnitReport[]         @relation("ReportApprover")
+  reportNotifications ReportNotification[]
 }
 
 model Organization {
@@ -65,11 +70,13 @@ model Branch {
   organization     Organization      @relation(fields: [organizationId], references: [id])
   assets           Asset[]
   inventoryRecords InventoryRecord[]
+  unitReports      UnitReport[]      @relation("UnitReports")
 }
 
 model Brand {
   id             String   @id @default(uuid())
   name           String
+  nameLower      String   @default("")
   logo           String?
   website        String?
   description    String?
@@ -80,24 +87,29 @@ model Brand {
   organization Organization @relation(fields: [organizationId], references: [id])
   assets       Asset[]
   assetTypes   AssetType[]
+
+  @@unique([organizationId, nameLower])
 }
 
 model Supplier {
-  id             String   @id @default(uuid())
-  companyName    String
-  contactPerson  String?
-  email          String?
-  phone          String?
-  address        String?
-  city           String?
-  pincode        String?
-  website        String?
-  organizationId String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id               String   @id @default(uuid())
+  companyName      String
+  companyNameLower String   @default("")
+  contactPerson    String?
+  email            String?
+  phone            String?
+  address          String?
+  city             String?
+  pincode          String?
+  website          String?
+  organizationId   String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
   assets       Asset[]
+
+  @@unique([organizationId, companyNameLower])
 }
 
 model AssetType {
@@ -150,6 +162,8 @@ model Asset {
   tags               String   @default("[]")
   companyPolicyNotes String?
   quantity           Int      @default(1)
+  minStockLevel      Int      @default(0)
+  maxStockLevel      Int      @default(100)
   unit               String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -165,13 +179,13 @@ model Asset {
   inventoryRecords     InventoryRecord[]
   documents            Document[]
   qrCodeRecord         QRCode?
+  quantityAuditLogs    QuantityAuditLog[]
 }
 
 model InventoryRecord {
   id            String   @id @default(uuid())
   assetId       String
   branchId      String
-  quantity      Int      @default(0)
   minStockLevel Int      @default(0)
   maxStockLevel Int      @default(100)
   lastAuditDate DateTime?
@@ -182,6 +196,18 @@ model InventoryRecord {
 
   asset  Asset  @relation(fields: [assetId], references: [id])
   branch Branch @relation(fields: [branchId], references: [id])
+}
+
+model QuantityAuditLog {
+  id               String   @id @default(uuid())
+  assetId          String
+  changedByUserId  String
+  previousQuantity Int
+  newQuantity      Int
+  changedAt        DateTime @default(now())
+
+  asset     Asset @relation(fields: [assetId], references: [id])
+  changedBy User  @relation(fields: [changedByUserId], references: [id])
 }
 
 model DepreciationSchedule {
@@ -312,20 +338,38 @@ model QRCode {
   appliedAt     DateTime?
   updatedAt     DateTime  @updatedAt
 
-  asset         Asset          @relation(fields: [assetId], references: [id])
-  approvalLogs  QRApprovalLog[]
+  asset         Asset     @relation(fields: [assetId], references: [id])
 }
 
-model QRApprovalLog {
+model UnitReport {
+  id              String    @id @default(uuid())
+  unitId          String
+  createdById     String
+  status          String    @default("draft")
+  approverId      String?
+  signatureImage  String?
+  rejectionReason String?
+  createdAt       DateTime  @default(now())
+  sentAt          DateTime?
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+
+  unit        Branch  @relation("UnitReports", fields: [unitId], references: [id])
+  createdBy   User    @relation("ReportCreator", fields: [createdById], references: [id])
+  approver    User?   @relation("ReportApprover", fields: [approverId], references: [id])
+  notifications ReportNotification[]
+}
+
+model ReportNotification {
   id         String   @id @default(uuid())
-  qrCodeId   String
-  action     String
+  reportId   String
   userId     String
-  reason     String?
+  type       String
+  isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
 
-  qrCode     QRCode   @relation(fields: [qrCodeId], references: [id])
-  user       User     @relation(fields: [userId], references: [id])
+  report UnitReport @relation(fields: [reportId], references: [id])
+  user   User       @relation(fields: [userId], references: [id])
 }
 
 model InventoryCategory {
@@ -373,4 +417,26 @@ model InventoryTransaction {
   createdAt       DateTime @default(now())
 
   inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  users       User[]
+}
+
+model RolePermission {
+  id         String @id @default(uuid())
+  roleId     String
+  permission String
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permission])
 }

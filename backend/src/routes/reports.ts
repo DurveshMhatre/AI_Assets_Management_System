@@ -1,6 +1,8 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { checkPermission } from '../middleware/permissions';
+import { PERMISSIONS } from '../constants/permissions';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 
@@ -9,7 +11,7 @@ const prisma = new PrismaClient();
 router.use(authenticate);
 
 // Power BI Export (Clean flat Excel)
-router.get('/export/powerbi', async (req: AuthRequest, res: Response) => {
+router.get('/export/powerbi', checkPermission(PERMISSIONS.VIEW_REPORTS), async (req: AuthRequest, res: Response) => {
     try {
         const orgId = req.user!.organizationId;
         const assets = await prisma.asset.findMany({
@@ -78,7 +80,7 @@ router.get('/export/powerbi', async (req: AuthRequest, res: Response) => {
 });
 
 // PDF Export
-router.get('/export/pdf', async (req: AuthRequest, res: Response) => {
+router.get('/export/pdf', checkPermission(PERMISSIONS.VIEW_REPORTS), async (req: AuthRequest, res: Response) => {
     try {
         const orgId = req.user!.organizationId;
         const assets = await prisma.asset.findMany({
@@ -149,7 +151,7 @@ router.get('/export/pdf', async (req: AuthRequest, res: Response) => {
 });
 
 // Get report data
-router.get('/:type', async (req: AuthRequest, res: Response) => {
+router.get('/:type', checkPermission(PERMISSIONS.VIEW_REPORTS), async (req: AuthRequest, res: Response) => {
     try {
         const orgId = req.user!.organizationId;
         const type = req.params.type;

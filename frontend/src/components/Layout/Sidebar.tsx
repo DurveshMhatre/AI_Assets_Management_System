@@ -3,9 +3,10 @@ import {
     LayoutDashboard, Package, BarChart3, Boxes, Wrench,
     TrendingDown, FileText, Tags, Award, Truck,
     Shield, Settings, ChevronLeft, ChevronRight, Sparkles,
-    QrCode, ScanLine, Users
+    QrCode, Users, FileCheck, ClipboardCheck
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { PERMISSIONS } from '../../constants/permissions';
 
 interface Props {
     collapsed: boolean;
@@ -15,24 +16,29 @@ interface Props {
 const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/bi-tools', icon: BarChart3, label: 'BI Tools' },
-    { to: '/assets', icon: Package, label: 'Assets' },
-    { to: '/inventory', icon: Boxes, label: 'Inventory' },
-    { to: '/maintenance', icon: Wrench, label: 'Maintenance' },
-    { to: '/depreciation', icon: TrendingDown, label: 'Depreciation' },
-    { to: '/reports', icon: FileText, label: 'Reports' },
+    { to: '/assets', icon: Package, label: 'Assets', permission: PERMISSIONS.VIEW_ASSETS },
+    { to: '/inventory', icon: Boxes, label: 'Inventory', permission: PERMISSIONS.VIEW_INVENTORY },
+    { to: '/maintenance', icon: Wrench, label: 'Maintenance', permission: PERMISSIONS.VIEW_MAINTENANCE },
+    { to: '/depreciation', icon: TrendingDown, label: 'Depreciation', permission: PERMISSIONS.VIEW_DEPRECIATION },
+    { to: '/reports', icon: FileText, label: 'Reports', permission: PERMISSIONS.VIEW_REPORTS },
     { to: '/asset-types', icon: Tags, label: 'Asset Types' },
     { to: '/brands', icon: Award, label: 'Brands' },
     { to: '/suppliers', icon: Truck, label: 'Suppliers' },
-    { to: '/qr-tracker', icon: QrCode, label: 'QR Tracker' },
-    { to: '/qr-approvals', icon: ScanLine, label: 'QR Approvals' },
-    { to: '/users', icon: Users, label: 'Users', adminOnly: true },
-    { to: '/roles', icon: Shield, label: 'Roles & Access' },
-    { to: '/settings', icon: Settings, label: 'Settings' },
+    { to: '/qr-tracker', icon: QrCode, label: 'QR Tracker', permission: PERMISSIONS.MANAGE_QR },
+    { to: '/unit-reports', icon: FileCheck, label: 'Unit Reports', permission: PERMISSIONS.VIEW_REPORTS },
+    { to: '/approvals', icon: ClipboardCheck, label: 'Pending Approvals', permission: PERMISSIONS.APPROVE_REPORTS },
+    { to: '/users', icon: Users, label: 'Users', permission: PERMISSIONS.MANAGE_USERS },
+    { to: '/roles', icon: Shield, label: 'Roles & Access', permission: PERMISSIONS.MANAGE_ROLES },
+    { to: '/settings', icon: Settings, label: 'Settings', permission: PERMISSIONS.VIEW_SETTINGS },
 ];
 
 export default function Sidebar({ collapsed, onToggle }: Props) {
-    const user = useAuthStore((s) => s.user);
-    const visibleNavItems = navItems.filter((item) => !item.adminOnly || user?.role === 'ADMIN');
+    const hasPermission = useAuthStore((s) => s.hasPermission);
+
+    const visibleNavItems = navItems.filter((item) => {
+        if (!item.permission) return true;
+        return hasPermission(item.permission);
+    });
 
     return (
         <aside className={`fixed top-0 left-0 h-screen bg-navy-900 text-white z-40 

@@ -43,6 +43,72 @@ async function main() {
     });
     console.log('✅ Users created');
 
+    // 2b. RBAC Roles & Permissions
+    const allPerms = [
+        'VIEW_ASSETS', 'EDIT_ASSETS', 'DELETE_ASSETS',
+        'VIEW_INVENTORY', 'EDIT_INVENTORY',
+        'VIEW_REPORTS', 'APPROVE_REPORTS',
+        'VIEW_MAINTENANCE', 'EDIT_MAINTENANCE',
+        'VIEW_DEPRECIATION',
+        'MANAGE_BRANDS', 'MANAGE_SUPPLIERS', 'MANAGE_ASSET_TYPES',
+        'MANAGE_ROLES', 'MANAGE_USERS',
+        'VIEW_SETTINGS', 'EDIT_SETTINGS',
+        'IMPORT_DATA', 'MANAGE_QR',
+    ];
+
+    const managerPerms = [
+        'VIEW_ASSETS', 'EDIT_ASSETS',
+        'VIEW_INVENTORY', 'EDIT_INVENTORY',
+        'VIEW_REPORTS', 'APPROVE_REPORTS',
+        'VIEW_MAINTENANCE', 'EDIT_MAINTENANCE',
+        'VIEW_DEPRECIATION',
+        'MANAGE_BRANDS', 'MANAGE_SUPPLIERS', 'MANAGE_ASSET_TYPES',
+        'VIEW_SETTINGS',
+        'IMPORT_DATA', 'MANAGE_QR',
+    ];
+
+    const techPerms = [
+        'VIEW_ASSETS',
+        'VIEW_INVENTORY',
+        'VIEW_REPORTS',
+        'VIEW_MAINTENANCE', 'EDIT_MAINTENANCE',
+        'VIEW_DEPRECIATION',
+        'MANAGE_QR',
+    ];
+
+    const viewerPerms = [
+        'VIEW_ASSETS',
+        'VIEW_INVENTORY',
+        'VIEW_REPORTS',
+        'VIEW_MAINTENANCE',
+        'VIEW_DEPRECIATION',
+    ];
+
+    const createRoleWithPerms = async (name: string, description: string, perms: string[]) => {
+        return prisma.role.create({
+            data: {
+                name,
+                description,
+                isSystem: true,
+                permissions: {
+                    create: perms.map(p => ({ permission: p })),
+                },
+            },
+        });
+    };
+
+    const adminRole = await createRoleWithPerms('ADMIN', 'Full system access', allPerms);
+    const managerRole = await createRoleWithPerms('MANAGER', 'Manage assets and operations', managerPerms);
+    const techRole = await createRoleWithPerms('TECHNICIAN', 'Maintenance and field operations', techPerms);
+    const viewerRole = await createRoleWithPerms('VIEWER', 'Read-only access', viewerPerms);
+
+    // Link users to roles
+    await prisma.user.update({ where: { id: admin.id }, data: { roleId: adminRole.id } });
+    await prisma.user.update({ where: { id: manager.id }, data: { roleId: managerRole.id } });
+    await prisma.user.update({ where: { id: tech.id }, data: { roleId: techRole.id } });
+    await prisma.user.update({ where: { id: viewer.id }, data: { roleId: viewerRole.id } });
+    console.log('✅ RBAC Roles & Permissions created');
+
     // 3. Branches
     const branches = await Promise.all([
         prisma.branch.create({ data: { name: 'HQ Mumbai', location: 'Head Office', address: '123 Business Park, Andheri East', city: 'Mumbai', pincode: '400069', organizationId: org.id } }),
@@ -55,24 +121,24 @@ async function main() {
 
     // 4. Brands
     const brands = await Promise.all([
-        prisma.brand.create({ data: { name: 'Dell', website: 'https://dell.com', description: 'Dell Technologies', organizationId: org.id } }),
-        prisma.brand.create({ data: { name: 'HP', website: 'https://hp.com', description: 'Hewlett-Packard', organizationId: org.id } }),
-        prisma.brand.create({ data: { name: 'Apple', website: 'https://apple.com', description: 'Apple Inc.', organizationId: org.id } }),
-        prisma.brand.create({ data: { name: 'Samsung', website: 'https://samsung.com', description: 'Samsung Electronics', organizationId: org.id } }),
-        prisma.brand.create({ data: { name: 'Lenovo', website: 'https://lenovo.com', description: 'Lenovo Group', organizationId: org.id } }),
-        prisma.brand.create({ data: { name: 'Cisco', website: 'https://cisco.com', description: 'Cisco Systems', organizationId: org.id } }),
-        prisma.brand.create({ data: { name: 'Herman Miller', website: 'https://hermanmiller.com', description: 'Office Furniture', organizationId: org.id } }),
-        prisma.brand.create({ data: { name: 'Daikin', website: 'https://daikin.com', description: 'Air Conditioning', organizationId: org.id } }),
+        prisma.brand.create({ data: { name: 'Dell', nameLower: 'dell', website: 'https://dell.com', description: 'Dell Technologies', organizationId: org.id } }),
+        prisma.brand.create({ data: { name: 'HP', nameLower: 'hp', website: 'https://hp.com', description: 'Hewlett-Packard', organizationId: org.id } }),
+        prisma.brand.create({ data: { name: 'Apple', nameLower: 'apple', website: 'https://apple.com', description: 'Apple Inc.', organizationId: org.id } }),
+        prisma.brand.create({ data: { name: 'Samsung', nameLower: 'samsung', website: 'https://samsung.com', description: 'Samsung Electronics', organizationId: org.id } }),
+        prisma.brand.create({ data: { name: 'Lenovo', nameLower: 'lenovo', website: 'https://lenovo.com', description: 'Lenovo Group', organizationId: org.id } }),
+        prisma.brand.create({ data: { name: 'Cisco', nameLower: 'cisco', website: 'https://cisco.com', description: 'Cisco Systems', organizationId: org.id } }),
+        prisma.brand.create({ data: { name: 'Herman Miller', nameLower: 'herman miller', website: 'https://hermanmiller.com', description: 'Office Furniture', organizationId: org.id } }),
+        prisma.brand.create({ data: { name: 'Daikin', nameLower: 'daikin', website: 'https://daikin.com', description: 'Air Conditioning', organizationId: org.id } }),
     ]);
     console.log('✅ Brands created');
 
     // 5. Suppliers
     const suppliers = await Promise.all([
-        prisma.supplier.create({ data: { companyName: 'TechWorld Solutions Pvt Ltd', contactPerson: 'Rahul Sharma', email: 'rahul@techworld.in', phone: '9876543210', address: 'Plot 5, MIDC', city: 'Mumbai', pincode: '400093', website: 'https://techworld.in', organizationId: org.id } }),
-        prisma.supplier.create({ data: { companyName: 'Digital India Enterprises', contactPerson: 'Priya Patel', email: 'priya@digitalindia.co.in', phone: '9876543211', address: '12 Nehru Place', city: 'Delhi', pincode: '110019', organizationId: org.id } }),
-        prisma.supplier.create({ data: { companyName: 'South IT Distribution', contactPerson: 'Karthik Reddy', email: 'karthik@southit.com', phone: '9876543212', address: '88 HSR Layout', city: 'Bangalore', pincode: '560102', organizationId: org.id } }),
-        prisma.supplier.create({ data: { companyName: 'Office Plus Furnishings', contactPerson: 'Amit Desai', email: 'amit@officeplus.in', phone: '9876543213', address: '45 FC Road', city: 'Pune', pincode: '411004', organizationId: org.id } }),
-        prisma.supplier.create({ data: { companyName: 'CoolAir Systems', contactPerson: 'Lakshmi Iyer', email: 'lakshmi@coolair.in', phone: '9876543214', address: '67 Anna Salai', city: 'Chennai', pincode: '600002', organizationId: org.id } }),
+        prisma.supplier.create({ data: { companyName: 'TechWorld Solutions Pvt Ltd', companyNameLower: 'techworld solutions pvt ltd', contactPerson: 'Rahul Sharma', email: 'rahul@techworld.in', phone: '9876543210', address: 'Plot 5, MIDC', city: 'Mumbai', pincode: '400093', website: 'https://techworld.in', organizationId: org.id } }),
+        prisma.supplier.create({ data: { companyName: 'Digital India Enterprises', companyNameLower: 'digital india enterprises', contactPerson: 'Priya Patel', email: 'priya@digitalindia.co.in', phone: '9876543211', address: '12 Nehru Place', city: 'Delhi', pincode: '110019', organizationId: org.id } }),
+        prisma.supplier.create({ data: { companyName: 'South IT Distribution', companyNameLower: 'south it distribution', contactPerson: 'Karthik Reddy', email: 'karthik@southit.com', phone: '9876543212', address: '88 HSR Layout', city: 'Bangalore', pincode: '560102', organizationId: org.id } }),
+        prisma.supplier.create({ data: { companyName: 'Office Plus Furnishings', companyNameLower: 'office plus furnishings', contactPerson: 'Amit Desai', email: 'amit@officeplus.in', phone: '9876543213', address: '45 FC Road', city: 'Pune', pincode: '411004', organizationId: org.id } }),
+        prisma.supplier.create({ data: { companyName: 'CoolAir Systems', companyNameLower: 'coolair systems', contactPerson: 'Lakshmi Iyer', email: 'lakshmi@coolair.in', phone: '9876543214', address: '67 Anna Salai', city: 'Chennai', pincode: '600002', organizationId: org.id } }),
     ]);
     console.log('✅ Suppliers created');
 
@@ -190,12 +256,11 @@ async function main() {
 
         createdAssets.push(asset);
 
-        // Create inventory record
+        // Create inventory record (quantity is now on Asset)
         await prisma.inventoryRecord.create({
             data: {
                 assetId: asset.id,
                 branchId: branches[d.branchIdx].id,
-                quantity: Math.floor(Math.random() * 10) + 1,
                 minStockLevel: 2,
                 maxStockLevel: 20,
                 lastAuditDate: new Date(),
