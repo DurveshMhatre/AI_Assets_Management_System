@@ -1,0 +1,147 @@
+src/routes/import.ts(16,19): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/routes/import.ts(16,25): error TS7006: Parameter '_file' implicitly has an 'any' type.
+src/routes/import.ts(16,32): error TS7006: Parameter 'cb' implicitly has an 'any' type.
+src/routes/import.ts(17,16): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/routes/import.ts(17,22): error TS7006: Parameter 'file' implicitly has an 'any' type.
+src/routes/import.ts(17,28): error TS7006: Parameter 'cb' implicitly has an 'any' type.
+src/routes/import.ts(22,18): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/routes/import.ts(22,24): error TS7006: Parameter 'file' implicitly has an 'any' type.
+src/routes/import.ts(22,30): error TS7006: Parameter 'cb' implicitly has an 'any' type.
+src/routes/import.ts(338,40): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/import.ts(347,29): error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+src/routes/import.ts(348,43): error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+src/routes/import.ts(361,41): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/import.ts(468,18): error TS2339: Property 'file' does not exist on type 'AuthRequest'.
+src/routes/import.ts(476,31): error TS2339: Property 'file' does not exist on type 'AuthRequest'.
+src/routes/import.ts(485,42): error TS2339: Property 'file' does not exist on type 'AuthRequest'.
+src/routes/import.ts(795,74): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/import.ts(817,32): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/routes/import.ts(888,18): error TS2339: Property 'file' does not exist on type 'AuthRequest'.
+src/routes/import.ts(891,42): error TS2339: Property 'file' does not exist on type 'AuthRequest'.
+src/routes/import.ts(916,31): error TS2339: Property 'file' does not exist on type 'AuthRequest'.
+src/routes/import.ts(917,31): error TS2339: Property 'file' does not exist on type 'AuthRequest'.
+src/routes/import.ts(932,18): error TS2339: Property 'file' does not exist on type 'AuthRequest'.
+src/routes/import.ts(935,42): error TS2339: Property 'file' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(1,34): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/backend/node_modules/express/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+src/routes/inventory.ts(19,30): error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(59,41): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(64,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(96,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(119,33): error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(142,53): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(180,64): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(209,43): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(223,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(224,23): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(234,83): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(236,66): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(248,58): error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(300,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(315,115): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(362,83): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(365,115): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(404,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(418,86): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(419,62): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(430,42): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(434,79): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(464,42): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(468,79): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/inventory.ts(502,43): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/maintenance.ts(1,34): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/backend/node_modules/express/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+src/routes/maintenance.ts(15,28): error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+src/routes/maintenance.ts(16,26): error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+src/routes/maintenance.ts(38,26): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/maintenance.ts(68,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/maintenance.ts(72,26): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/maintenance.ts(83,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/maintenance.ts(97,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/maintenance.ts(101,74): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/maintenance.ts(108,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/maintenance.ts(129,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/maintenance.ts(133,63): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/qrRoutes.ts(1,34): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/backend/node_modules/express/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+src/routes/qrRoutes.ts(14,33): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/qrRoutes.ts(50,70): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/qrRoutes.ts(70,70): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/qrRoutes.ts(90,70): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/qrRoutes.ts(111,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/qrRoutes.ts(137,35): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/reports.ts(1,34): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/backend/node_modules/express/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+src/routes/reports.ts(157,26): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/reports.ts(158,28): error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+src/routes/reports.ts(232,43): error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+src/routes/roles.ts(1,34): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/backend/node_modules/express/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+src/routes/roles.ts(47,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/roles.ts(68,56): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/roles.ts(116,43): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/roles.ts(118,74): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/roles.ts(126,63): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/roles.ts(134,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/roles.ts(157,37): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/roles.ts(163,70): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/roles.ts(174,69): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/roles.ts(176,68): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/roles.ts(183,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/roles.ts(204,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/roles.ts(222,71): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/roles.ts(223,53): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/settings.ts(1,34): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/backend/node_modules/express/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+src/routes/settings.ts(6,20): error TS7016: Could not find a declaration file for module 'multer'. '/opt/render/project/src/backend/node_modules/multer/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/multer` if it exists or add a new declaration (.d.ts) file containing `declare module 'multer';`
+src/routes/settings.ts(14,19): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/routes/settings.ts(14,25): error TS7006: Parameter '_file' implicitly has an 'any' type.
+src/routes/settings.ts(14,32): error TS7006: Parameter 'cb' implicitly has an 'any' type.
+src/routes/settings.ts(15,16): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/routes/settings.ts(15,22): error TS7006: Parameter 'file' implicitly has an 'any' type.
+src/routes/settings.ts(15,28): error TS7006: Parameter 'cb' implicitly has an 'any' type.
+src/routes/settings.ts(21,18): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/routes/settings.ts(21,24): error TS7006: Parameter 'file' implicitly has an 'any' type.
+src/routes/settings.ts(21,30): error TS7006: Parameter 'cb' implicitly has an 'any' type.
+src/routes/settings.ts(38,49): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/settings.ts(54,18): error TS2339: Property 'file' does not exist on type 'AuthRequest'.
+src/routes/settings.ts(60,48): error TS2339: Property 'file' does not exist on type 'AuthRequest'.
+src/routes/suppliers.ts(1,34): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/backend/node_modules/express/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+src/routes/suppliers.ts(26,26): error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+src/routes/suppliers.ts(27,31): error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+src/routes/suppliers.ts(49,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/suppliers.ts(55,38): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/suppliers.ts(65,99): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/suppliers.ts(92,99): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/suppliers.ts(101,101): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/suppliers.ts(122,74): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/suppliers.ts(129,80): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/suppliers.ts(131,57): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/unitReports.ts(1,34): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/backend/node_modules/express/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+src/routes/unitReports.ts(15,40): error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+src/routes/unitReports.ts(68,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/unitReports.ts(78,35): error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+src/routes/unitReports.ts(79,36): error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+src/routes/unitReports.ts(118,32): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/unitReports.ts(149,78): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/unitReports.ts(191,40): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/unitReports.ts(196,78): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/unitReports.ts(231,32): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/unitReports.ts(236,78): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/unitReports.ts(303,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/users.ts(1,34): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/backend/node_modules/express/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+src/routes/users.ts(6,20): error TS7016: Could not find a declaration file for module 'bcryptjs'. '/opt/render/project/src/backend/node_modules/bcryptjs/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/bcryptjs` if it exists or add a new declaration (.d.ts) file containing `declare module 'bcryptjs';`
+src/routes/users.ts(39,61): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/users.ts(66,63): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/users.ts(72,91): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/users.ts(81,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/users.ts(92,32): error TS2339: Property 'body' does not exist on type 'AuthRequest'.
+src/routes/users.ts(106,30): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/users.ts(118,34): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/users.ts(130,17): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+src/routes/users.ts(131,53): error TS2339: Property 'params' does not exist on type 'AuthRequest'.
