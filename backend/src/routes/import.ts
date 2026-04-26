@@ -5,6 +5,7 @@ import { checkPermission } from '../middleware/permissions';
 import { PERMISSIONS } from '../constants/permissions';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import ExcelJS from 'exceljs';
 import Fuse from 'fuse.js';
 import { generateCodePrefix } from '../utils/assetHelpers';
@@ -12,8 +13,12 @@ import { generateCodePrefix } from '../utils/assetHelpers';
 const router = Router();
 const prisma = new PrismaClient();
 
+// Ensure uploads directory exists (Render uses ephemeral filesystem)
+const uploadsDir = path.join(__dirname, '../../uploads');
+fs.mkdirSync(uploadsDir, { recursive: true });
+
 const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, path.join(__dirname, '../../uploads')),
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
     filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
 });
 const upload = multer({
