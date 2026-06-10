@@ -54,6 +54,7 @@ async function main() {
         'MANAGE_ROLES', 'MANAGE_USERS',
         'VIEW_SETTINGS', 'EDIT_SETTINGS',
         'IMPORT_DATA', 'MANAGE_QR',
+        'VIEW_EXTENSIONS', 'EDIT_EXTENSIONS',
     ];
 
     const managerPerms = [
@@ -65,6 +66,7 @@ async function main() {
         'MANAGE_BRANDS', 'MANAGE_SUPPLIERS', 'MANAGE_ASSET_TYPES',
         'VIEW_SETTINGS',
         'IMPORT_DATA', 'MANAGE_QR',
+        'VIEW_EXTENSIONS', 'EDIT_EXTENSIONS',
     ];
 
     const techPerms = [
@@ -226,7 +228,7 @@ async function main() {
         })),
     ];
 
-    const createdAssets = [];
+    const createdAssets: any[] = [];
     for (let i = 0; i < assetData.length; i++) {
         const d = assetData[i];
         const purchaseDate = new Date(Date.now() - d.daysAgo * 24 * 60 * 60 * 1000);

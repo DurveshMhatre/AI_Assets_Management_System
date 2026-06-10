@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 type LegacyPermission = 'view' | 'create' | 'edit' | 'delete' | 'export' | 'execute';
 type LegacyFeature = 'dashboard' | 'assets' | 'inventory' | 'maintenance' | 'depreciation' |
     'reports' | 'asset-types' | 'brands' | 'suppliers' | 'roles' | 'settings' |
-    'import' | 'users' | 'qr';
+    'import' | 'users' | 'qr' | 'extensions';
 
 const legacyPermissionMatrix: Record<string, Record<LegacyFeature, LegacyPermission[]>> = {
     ADMIN: {
@@ -27,6 +27,7 @@ const legacyPermissionMatrix: Record<string, Record<LegacyFeature, LegacyPermiss
         import: ['view', 'execute'],
         users: ['view', 'create', 'edit', 'delete'],
         qr: ['view', 'create', 'edit', 'delete', 'execute'],
+        extensions: ['view', 'edit'],
     },
     MANAGER: {
         dashboard: ['view'],
@@ -43,6 +44,7 @@ const legacyPermissionMatrix: Record<string, Record<LegacyFeature, LegacyPermiss
         import: ['view', 'execute'],
         users: ['view'],
         qr: ['view', 'create', 'edit', 'execute'],
+        extensions: ['view', 'edit'],
     },
     TECHNICIAN: {
         dashboard: ['view'],
@@ -59,6 +61,7 @@ const legacyPermissionMatrix: Record<string, Record<LegacyFeature, LegacyPermiss
         import: ['view'],
         users: [],
         qr: ['view', 'create'],
+        extensions: ['view'],
     },
     VIEWER: {
         dashboard: ['view'],
@@ -75,6 +78,7 @@ const legacyPermissionMatrix: Record<string, Record<LegacyFeature, LegacyPermiss
         import: ['view'],
         users: [],
         qr: ['view'],
+        extensions: [],
     }
 };
 
@@ -99,6 +103,8 @@ const permissionToLegacy: Record<string, { feature: LegacyFeature; permissions: 
     EDIT_SETTINGS: { feature: 'settings', permissions: ['edit'] },
     IMPORT_DATA: { feature: 'import', permissions: ['execute'] },
     MANAGE_QR: { feature: 'qr', permissions: ['create', 'edit', 'delete', 'execute'] },
+    VIEW_EXTENSIONS: { feature: 'extensions', permissions: ['view'] },
+    EDIT_EXTENSIONS: { feature: 'extensions', permissions: ['edit'] },
 };
 
 // Simple in-memory TTL cache for user permissions (60s)

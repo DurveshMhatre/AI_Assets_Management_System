@@ -72,7 +72,7 @@ async function generateDepreciationSchedule(assetId: string) {
 
     let currentBV = purchasePrice;
     let cumDep = 0;
-    const records = [];
+    const records: any[] = [];
 
     for (let m = 0; m < months; m++) {
         const startDate = new Date(purchaseDate);

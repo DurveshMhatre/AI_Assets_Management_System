@@ -23,6 +23,17 @@ import UnitReports from './pages/Reports/UnitReports';
 import PendingApprovals from './pages/Approvals/PendingApprovals';
 import Users from './pages/Users/Users';
 import AccessDenied from './pages/AccessDenied';
+import ExtensionHub from './pages/Extensions/ExtensionHub';
+import InvestmentDashboard from './pages/Extensions/InvestmentDashboard';
+import PhysicalAssetDashboard from './pages/Extensions/PhysicalAssetDashboard';
+import InfrastructureDashboard from './pages/Extensions/InfrastructureDashboard';
+import FixedAssetDashboard from './pages/Extensions/FixedAssetDashboard';
+import ITAssetDashboard from './pages/Extensions/ITAssetDashboard';
+import DigitalAssetDashboard from './pages/Extensions/DigitalAssetDashboard';
+import RealEstateDashboard from './pages/Extensions/RealEstateDashboard';
+import GovernmentDashboard from './pages/Extensions/GovernmentDashboard';
+import WealthDashboard from './pages/Extensions/WealthDashboard';
+import NaturalResourceDashboard from './pages/Extensions/NaturalResourceDashboard';
 import api from './api/client';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -90,6 +101,18 @@ export default function App() {
                         <Route path="users" element={<PermissionRoute permission="MANAGE_USERS"><Users /></PermissionRoute>} />
                         <Route path="roles" element={<PermissionRoute permission="MANAGE_ROLES"><Roles /></PermissionRoute>} />
                         <Route path="settings" element={<Settings />} />
+                        {/* Domain Extension Routes */}
+                        <Route path="extensions" element={<PermissionRoute permission="VIEW_EXTENSIONS"><ExtensionHub /></PermissionRoute>} />
+                        <Route path="extensions/investment" element={<PermissionRoute permission="VIEW_EXTENSIONS"><InvestmentDashboard /></PermissionRoute>} />
+                        <Route path="extensions/physical" element={<PermissionRoute permission="VIEW_EXTENSIONS"><PhysicalAssetDashboard /></PermissionRoute>} />
+                        <Route path="extensions/infrastructure" element={<PermissionRoute permission="VIEW_EXTENSIONS"><InfrastructureDashboard /></PermissionRoute>} />
+                        <Route path="extensions/fixed-asset" element={<PermissionRoute permission="VIEW_EXTENSIONS"><FixedAssetDashboard /></PermissionRoute>} />
+                        <Route path="extensions/it" element={<PermissionRoute permission="VIEW_EXTENSIONS"><ITAssetDashboard /></PermissionRoute>} />
+                        <Route path="extensions/digital" element={<PermissionRoute permission="VIEW_EXTENSIONS"><DigitalAssetDashboard /></PermissionRoute>} />
+                        <Route path="extensions/real-estate" element={<PermissionRoute permission="VIEW_EXTENSIONS"><RealEstateDashboard /></PermissionRoute>} />
+                        <Route path="extensions/government" element={<PermissionRoute permission="VIEW_EXTENSIONS"><GovernmentDashboard /></PermissionRoute>} />
+                        <Route path="extensions/wealth" element={<PermissionRoute permission="VIEW_EXTENSIONS"><WealthDashboard /></PermissionRoute>} />
+                        <Route path="extensions/natural-resource" element={<PermissionRoute permission="VIEW_EXTENSIONS"><NaturalResourceDashboard /></PermissionRoute>} />
                     </Route>
                 </Routes>
             </PermissionLoader>

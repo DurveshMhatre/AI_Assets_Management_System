@@ -21,6 +21,7 @@ import settingsRoutes from './routes/settings';
 import auditLogRoutes from './routes/auditLogs';
 import qrRoutes from './routes/qrRoutes';
 import unitReportRoutes from './routes/unitReports';
+import extensionRoutes from './routes/extensions';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -75,6 +76,7 @@ app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/qr', qrRoutes);
 app.use('/api/unit-reports', unitReportRoutes);
 app.use('/api/templates', importRoutes);
+app.use('/api/extensions', extensionRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

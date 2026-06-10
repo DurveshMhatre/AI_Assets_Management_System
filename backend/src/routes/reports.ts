@@ -10,7 +10,7 @@ const router = Router();
 const prisma = new PrismaClient();
 router.use(authenticate);
 
-// Power BI Export (Clean flat Excel)
+// Power BI Export (Optimized Excel with named tables for Power BI auto-detection)
 router.get('/export/powerbi', checkPermission(PERMISSIONS.VIEW_REPORTS), async (req: AuthRequest, res: Response) => {
     try {
         const orgId = req.user!.organizationId;
@@ -20,12 +20,14 @@ router.get('/export/powerbi', checkPermission(PERMISSIONS.VIEW_REPORTS), async (
                 brand: { select: { name: true } },
                 supplier: { select: { companyName: true } },
                 branch: { select: { name: true } },
-                assetType: { select: { name: true } },
+                assetType: { select: { name: true, depreciationMethod: true, usefulLifeYears: true } },
                 assignedTo: { select: { name: true } }
             }
         });
 
         const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'AMS Pro';
+        workbook.created = new Date();
         const ws = workbook.addWorksheet('Assets');
 
         ws.columns = [
@@ -34,39 +36,101 @@ router.get('/export/powerbi', checkPermission(PERMISSIONS.VIEW_REPORTS), async (
             { header: 'Brand', key: 'brand', width: 15 },
             { header: 'Supplier', key: 'supplier', width: 20 },
             { header: 'Asset Type', key: 'assetType', width: 15 },
+            { header: 'Depreciation Method', key: 'depMethod', width: 20 },
+            { header: 'Useful Life (Years)', key: 'usefulLife', width: 18 },
             { header: 'Location', key: 'location', width: 15 },
             { header: 'Branch', key: 'branch', width: 15 },
             { header: 'Purchase Date', key: 'purchaseDate', width: 15 },
-            { header: 'Purchase Price', key: 'purchasePrice', width: 15 },
-            { header: 'Current Value', key: 'currentValue', width: 15 },
-            { header: 'Status', key: 'status', width: 12 },
+            { header: 'Purchase Price', key: 'purchasePrice', width: 18 },
+            { header: 'Current Value', key: 'currentValue', width: 18 },
+            { header: 'Depreciated Amount', key: 'depreciatedAmt', width: 18 },
+            { header: 'Status', key: 'status', width: 14 },
             { header: 'Serial Number', key: 'serialNumber', width: 18 },
             { header: 'Assigned To', key: 'assignedTo', width: 15 },
             { header: 'Warranty Expiry', key: 'warrantyExpiry', width: 15 },
+            { header: 'Age (Months)', key: 'ageMonths', width: 14 },
         ];
 
-        // Style header row
+        // Style header row for Power BI
         const headerRow = ws.getRow(1);
-        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
         headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+        headerRow.alignment = { horizontal: 'center' };
 
         assets.forEach(a => {
-            ws.addRow({
+            const purchaseDate = a.purchaseDate ? new Date(a.purchaseDate) : null;
+            const ageMonths = purchaseDate ? Math.floor((Date.now() - purchaseDate.getTime()) / (30.44 * 24 * 60 * 60 * 1000)) : null;
+            const row = ws.addRow({
                 assetCode: a.assetCode,
                 name: a.name,
-                brand: a.brand?.name || 'N/A',
-                supplier: a.supplier?.companyName || 'N/A',
-                assetType: a.assetType?.name || 'N/A',
-                location: a.location || 'N/A',
-                branch: a.branch?.name || 'N/A',
-                purchaseDate: a.purchaseDate ? new Date(a.purchaseDate).toISOString().substring(0, 10) : 'N/A',
+                brand: a.brand?.name || '',
+                supplier: a.supplier?.companyName || '',
+                assetType: a.assetType?.name || '',
+                depMethod: a.assetType?.depreciationMethod || '',
+                usefulLife: a.assetType?.usefulLifeYears || null,
+                location: a.location || '',
+                branch: a.branch?.name || '',
+                purchaseDate: purchaseDate,
                 purchasePrice: a.purchasePrice,
                 currentValue: a.currentValue,
+                depreciatedAmt: a.purchasePrice - a.currentValue,
                 status: a.status,
-                serialNumber: a.serialNumber || 'N/A',
-                assignedTo: a.assignedTo?.name || 'N/A',
-                warrantyExpiry: a.warrantyExpiryDate ? new Date(a.warrantyExpiryDate).toISOString().substring(0, 10) : 'N/A',
+                serialNumber: a.serialNumber || '',
+                assignedTo: a.assignedTo?.name || '',
+                warrantyExpiry: a.warrantyExpiryDate ? new Date(a.warrantyExpiryDate) : null,
+                ageMonths: ageMonths,
             });
+            // Set number format for currency columns
+            row.getCell('purchasePrice').numFmt = '#,##0.00';
+            row.getCell('currentValue').numFmt = '#,##0.00';
+            row.getCell('depreciatedAmt').numFmt = '#,##0.00';
+            // Set date format
+            if (purchaseDate) row.getCell('purchaseDate').numFmt = 'YYYY-MM-DD';
+            if (a.warrantyExpiryDate) row.getCell('warrantyExpiry').numFmt = 'YYYY-MM-DD';
+        });
+
+        // Add as named Excel Table for Power BI auto-detection
+        const lastRow = ws.rowCount;
+        if (lastRow > 1) {
+            ws.addTable({
+                name: 'AssetData',
+                ref: 'A1',
+                headerRow: true,
+                style: { theme: 'TableStyleMedium2', showRowStripes: true },
+                columns: ws.columns.map(c => ({ name: c.header as string, filterButton: true })),
+                rows: assets.map((a, i) => {
+                    const r = ws.getRow(i + 2);
+                    return ws.columns.map((_, ci) => r.getCell(ci + 1).value);
+                }),
+            });
+        }
+
+        // Add a depreciation summary sheet
+        const depWs = workbook.addWorksheet('Depreciation Summary');
+        depWs.columns = [
+            { header: 'Asset Type', key: 'type', width: 20 },
+            { header: 'Count', key: 'count', width: 10 },
+            { header: 'Total Purchase Value', key: 'totalPurchase', width: 22 },
+            { header: 'Total Current Value', key: 'totalCurrent', width: 22 },
+            { header: 'Total Depreciated', key: 'totalDep', width: 22 },
+        ];
+        const depHeaderRow = depWs.getRow(1);
+        depHeaderRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        depHeaderRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+
+        const byType: Record<string, { count: number; purchase: number; current: number }> = {};
+        assets.forEach(a => {
+            const t = a.assetType?.name || 'Unknown';
+            if (!byType[t]) byType[t] = { count: 0, purchase: 0, current: 0 };
+            byType[t].count++;
+            byType[t].purchase += a.purchasePrice;
+            byType[t].current += a.currentValue;
+        });
+        Object.entries(byType).forEach(([type, d]) => {
+            const row = depWs.addRow({ type, count: d.count, totalPurchase: d.purchase, totalCurrent: d.current, totalDep: d.purchase - d.current });
+            row.getCell('totalPurchase').numFmt = '#,##0.00';
+            row.getCell('totalCurrent').numFmt = '#,##0.00';
+            row.getCell('totalDep').numFmt = '#,##0.00';
         });
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -78,6 +142,7 @@ router.get('/export/powerbi', checkPermission(PERMISSIONS.VIEW_REPORTS), async (
         res.status(500).json({ success: false, error: 'Export failed' });
     }
 });
+
 
 // PDF Export
 router.get('/export/pdf', checkPermission(PERMISSIONS.VIEW_REPORTS), async (req: AuthRequest, res: Response) => {

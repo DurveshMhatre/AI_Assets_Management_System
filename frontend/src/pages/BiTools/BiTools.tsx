@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ScatterChart, Scatter, ZAxis, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
-import { BarChart3, PieChart as PieIcon, Activity, Layers, TrendingUp, Filter } from 'lucide-react';
+import { BarChart3, PieChart as PieIcon, Activity, Layers, TrendingUp, Filter, Download, FileSpreadsheet } from 'lucide-react';
 import api from '../../api/client';
 
 const COLORS = ['#6366F1', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#06B6D4', '#EC4899', '#84CC16'];
@@ -49,11 +49,45 @@ export default function BiTools() {
         fullMark: Math.max(...byType.map((x: any) => x.count)) * 1.5
     }));
 
+    const handleExportPowerBI = async () => {
+        try {
+            const response = await api.get('/reports/export/powerbi', { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'PowerBI_Asset_Data.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Export failed:', err);
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fade-in">
-            <div>
-                <h1 className="text-2xl font-bold text-slate-900">BI Tools & Analytics</h1>
-                <p className="text-slate-500 text-sm mt-1">Advanced visualizations and business intelligence</p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-900">BI Tools & Analytics</h1>
+                    <p className="text-slate-500 text-sm mt-1">Advanced visualizations and business intelligence</p>
+                </div>
+                <div className="flex gap-3">
+                    <button
+                        onClick={handleExportPowerBI}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl text-sm font-medium hover:from-emerald-700 hover:to-teal-700 transition-all shadow-md shadow-emerald-200 hover:shadow-lg"
+                    >
+                        <FileSpreadsheet className="w-4 h-4" />
+                        Export for Power BI
+                    </button>
+                    <button
+                        onClick={handleExportPowerBI}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-medium hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md shadow-indigo-200 hover:shadow-lg"
+                    >
+                        <Download className="w-4 h-4" />
+                        Download Excel
+                    </button>
+                </div>
             </div>
 
             {/* Tab Navigation */}

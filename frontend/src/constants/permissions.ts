@@ -18,6 +18,8 @@ export const PERMISSIONS = {
   EDIT_SETTINGS:     'EDIT_SETTINGS',
   IMPORT_DATA:       'IMPORT_DATA',
   MANAGE_QR:         'MANAGE_QR',
+  VIEW_EXTENSIONS:   'VIEW_EXTENSIONS',
+  EDIT_EXTENSIONS:   'EDIT_EXTENSIONS',
 } as const;
 
 export type PermissionKey = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -55,6 +57,10 @@ export const PERMISSION_CATEGORIES: Record<string, { label: string; permissions:
   system: {
     label: 'System',
     permissions: [PERMISSIONS.VIEW_SETTINGS, PERMISSIONS.EDIT_SETTINGS, PERMISSIONS.IMPORT_DATA, PERMISSIONS.MANAGE_QR],
+  },
+  extensions: {
+    label: 'Domain Extensions',
+    permissions: [PERMISSIONS.VIEW_EXTENSIONS, PERMISSIONS.EDIT_EXTENSIONS],
   },
 };
 

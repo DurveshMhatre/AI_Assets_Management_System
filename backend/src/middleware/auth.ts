@@ -6,7 +6,7 @@ import { securityConfig } from '../config/security';
 
 const prisma = new PrismaClient();
 
-export interface AuthRequest extends Request {
+export type AuthRequest = Request & {
     user?: {
         id: string;
         email: string;
@@ -15,7 +15,7 @@ export interface AuthRequest extends Request {
         organizationId: string;
         name: string;
     };
-}
+};
 
 export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {

@@ -16,14 +16,14 @@ const uploadsDir = path.join(__dirname, '../../uploads');
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 const manualStorage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadsDir),
-    filename: (_req, file, cb) => cb(null, `user-manual-${Date.now()}${path.extname(file.originalname)}`)
+    destination: (_req: any, _file: any, cb: any) => cb(null, uploadsDir),
+    filename: (_req: any, file: any, cb: any) => cb(null, `user-manual-${Date.now()}${path.extname(file.originalname)}`)
 });
 
 const manualUpload = multer({
     storage: manualStorage,
     limits: { fileSize: 20 * 1024 * 1024 },
-    fileFilter: (_req, file, cb) => {
+    fileFilter: (_req: any, file: any, cb: any) => {
         const ext = path.extname(file.originalname).toLowerCase();
         if (['.pdf', '.doc', '.docx'].includes(ext)) cb(null, true);
         else cb(new Error('Only PDF or Word documents are allowed'));

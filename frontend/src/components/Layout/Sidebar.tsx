@@ -3,7 +3,7 @@ import {
     LayoutDashboard, Package, BarChart3, Boxes, Wrench,
     TrendingDown, FileText, Tags, Award, Truck,
     Shield, Settings, ChevronLeft, ChevronRight, Sparkles,
-    QrCode, Users, FileCheck, ClipboardCheck
+    QrCode, Users, FileCheck, ClipboardCheck, Blocks
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { PERMISSIONS } from '../../constants/permissions';
@@ -25,6 +25,7 @@ const navItems = [
     { to: '/brands', icon: Award, label: 'Brands' },
     { to: '/suppliers', icon: Truck, label: 'Suppliers' },
     { to: '/qr-tracker', icon: QrCode, label: 'QR Tracker', permission: PERMISSIONS.MANAGE_QR },
+    { to: '/extensions', icon: Blocks, label: 'Domain Modules', permission: PERMISSIONS.VIEW_EXTENSIONS },
     { to: '/unit-reports', icon: FileCheck, label: 'Unit Reports', permission: PERMISSIONS.VIEW_REPORTS },
     { to: '/approvals', icon: ClipboardCheck, label: 'Pending Approvals', permission: PERMISSIONS.APPROVE_REPORTS },
     { to: '/users', icon: Users, label: 'Users', permission: PERMISSIONS.MANAGE_USERS },

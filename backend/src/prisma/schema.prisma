@@ -180,6 +180,18 @@ model Asset {
   documents            Document[]
   qrCodeRecord         QRCode?
   quantityAuditLogs    QuantityAuditLog[]
+
+  // Domain Extensions (1:1 optional)
+  investmentExt        InvestmentExtension?
+  physicalAssetExt     PhysicalAssetExtension?
+  infrastructureExt    InfrastructureExtension?
+  fixedAssetExt        FixedAssetExtension?
+  itAssetExt           ITAssetExtension?
+  digitalAssetExt      DigitalAssetExtension?
+  realEstateExt        RealEstateExtension?
+  governmentExt        GovernmentExtension?
+  wealthExt            WealthExtension?
+  naturalResourceExt   NaturalResourceExtension?
 }
 
 model InventoryRecord {
@@ -439,4 +451,241 @@ model RolePermission {
   role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, permission])
+}
+
+// ─── DOMAIN EXTENSION MODELS ───────────────────────────────────────────
+
+// 1. Investment Management
+model InvestmentExtension {
+  id              String   @id @default(uuid())
+  assetId         String   @unique
+  assetClass      String?  // EQUITY, DEBT, MUTUAL_FUND, CASH, HEDGE_FUND
+  tickerSymbol    String?
+  exchange        String?  // NSE, BSE, NASDAQ
+  marketValue     Float    @default(0)
+  purchaseNAV     Float    @default(0)
+  currentNAV      Float    @default(0)
+  unitsHeld       Float    @default(0)
+  realizedGain    Float    @default(0)
+  unrealizedGain  Float    @default(0)
+  dividendYTD     Float    @default(0)
+  couponRate      Float?
+  maturityDate    DateTime?
+  riskScore       Int?     // 1-10
+  volatilityIndex Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+// 2. Physical Asset Management (Enhanced)
+model PhysicalAssetExtension {
+  id                  String   @id @default(uuid())
+  assetId             String   @unique
+  lifecycleStage      String   @default("ACTIVE") // PROCUREMENT, COMMISSIONING, ACTIVE, RETIRED
+  mtbfHours           Float?   // Mean Time Between Failures
+  mttrHours           Float?   // Mean Time To Repair
+  oeeScore            Float?   // Overall Equipment Effectiveness 0-100
+  totalOperatingHours Float    @default(0)
+  lastFailureDate     DateTime?
+  failureMode         String?  // FMEA failure mode
+  failureCount        Int      @default(0)
+  warrantyClaimStatus String?  // NONE, FILED, APPROVED, REJECTED
+  warrantyClaimRef    String?
+  spareParts          String   @default("[]") // JSON array of linked InventoryItem IDs
+  conditionScore      Float?   // AI-computed 0-100
+  nextPMDate          DateTime? // Predictive maintenance
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+// 3. Infrastructure Management
+model InfrastructureExtension {
+  id                   String   @id @default(uuid())
+  assetId              String   @unique
+  conditionIndex       Float?   // 0-100 civil engineering scale
+  inspectionFrequency  String?  // MONTHLY, QUARTERLY, ANNUAL, BIENNIAL
+  lastInspectionDate   DateTime?
+  nextInspectionDate   DateTime?
+  residualLifeYears    Float?
+  latitude             Float?
+  longitude            Float?
+  complianceStatus     String   @default("COMPLIANT") // COMPLIANT, NON_COMPLIANT, PENDING
+  complianceChecklist  String   @default("[]") // JSON array of regulation items
+  failureSeverity      String?  // LOW, MEDIUM, HIGH, CRITICAL
+  trafficVolume        Int?     // daily usage count
+  deteriorationModel   String?  // MARKOV, LINEAR
+  riskIndex            Float?   // ML-computed
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+// 4. Fixed Asset / Accounting
+model FixedAssetExtension {
+  id                 String   @id @default(uuid())
+  assetId            String   @unique
+  accountingBlock    String?  // Companies Act 2013 block category
+  financialYear      String?  // e.g. "2025-26"
+  wdvOpeningBalance  Float    @default(0)
+  additionsThisYear  Float    @default(0)
+  disposalsThisYear  Float    @default(0)
+  wdvClosingBalance  Float    @default(0)
+  impairmentFlag     Boolean  @default(false)
+  impairmentAmount   Float    @default(0)
+  revaluationReserve Float    @default(0)
+  recoverableAmount  Float?
+  auditFormRef       String?  // Statutory audit form reference
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+// 5. IT Asset Management (HAM/SAM/CAM)
+model ITAssetExtension {
+  id               String    @id @default(uuid())
+  assetId          String    @unique
+  subType          String    @default("HAM") // HAM, SAM, CAM
+  // HAM fields
+  cpuModel         String?
+  ramGB            Int?
+  storageGB        Int?
+  storageType      String?   // SSD, HDD, NVMe
+  osVersion        String?
+  eolDate          DateTime? // End of Life
+  // SAM fields
+  licenseKey       String?
+  licenseType      String?   // PERPETUAL, SUBSCRIPTION, OPEN_SOURCE
+  licensedSeats    Int?
+  allocatedSeats   Int?
+  licenseVendor    String?
+  licenseExpiry    DateTime?
+  costPerSeat      Float?
+  // CAM fields
+  cloudProvider    String?   // AWS, AZURE, GCP
+  cloudResourceId  String?
+  instanceType     String?
+  region           String?
+  monthlyCost      Float?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+// 6. Digital Asset Management
+model DigitalAssetExtension {
+  id              String    @id @default(uuid())
+  assetId         String    @unique
+  mediaType       String?   // IMAGE, VIDEO, PDF, SPREADSHEET, CAD, OTHER
+  keywords        String    @default("[]") // JSON array
+  projectName     String?
+  campaignName    String?
+  usageRights     String?   // ROYALTY_FREE, LICENSED, PROPRIETARY
+  rightsExpiry     DateTime?
+  versionNumber   String    @default("1.0")
+  downloadCount   Int       @default(0)
+  fileHash        String?   // perceptual hash for duplicate detection
+  collectionName  String?
+  lastAccessedAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+// 7. Real Estate Management
+model RealEstateExtension {
+  id                  String    @id @default(uuid())
+  assetId             String    @unique
+  propertyType        String?   // RESIDENTIAL, COMMERCIAL, INDUSTRIAL, LAND
+  carpetAreaSqft      Float?
+  builtUpAreaSqft     Float?
+  tenantName          String?
+  leaseStart          DateTime?
+  leaseEnd            DateTime?
+  monthlyRent         Float     @default(0)
+  rentReceived        Float     @default(0)
+  escalationPercent   Float?
+  stampDutyValue      Float?
+  marketValueEstimate Float?
+  rentalYield         Float?    // computed
+  occupancyStatus     String    @default("VACANT") // OCCUPIED, VACANT, UNDER_RENOVATION
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+// 8. Government / Public Asset Management
+model GovernmentExtension {
+  id                  String    @id @default(uuid())
+  assetId             String    @unique
+  custodianDept       String?
+  gfrClassification   String?   // MOVABLE, IMMOVABLE per GFR 2017
+  tenderRefNumber     String?
+  gemPortalId         String?
+  procurementMode     String?   // GEM, OPEN_TENDER, LIMITED_TENDER, SINGLE_SOURCE
+  disposalMethod      String?   // AUCTION, WRITE_OFF, TRANSFER
+  auctionDate         DateTime?
+  auctionReservePrice Float?
+  interDeptTransferTo String?
+  transferDate        DateTime?
+  publicRegister      Boolean   @default(false) // publicly viewable
+  utilizationScore    Float?    // AI-computed
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+// 9. Wealth Management
+model WealthExtension {
+  id                String   @id @default(uuid())
+  assetId           String   @unique
+  clientName        String?
+  clientRiskAppetite String? // CONSERVATIVE, MODERATE, AGGRESSIVE
+  investmentHorizon  String? // SHORT, MEDIUM, LONG
+  targetAllocation   String  @default("{}") // JSON: { equity: 60, debt: 30, gold: 10 }
+  actualAllocation   String  @default("{}") // JSON
+  taxBracket         String? // e.g. "30%"
+  capitalGainsTax    Float   @default(0)
+  rentalIncomeTax    Float   @default(0)
+  depreciationBenefit Float  @default(0)
+  successionNotes    String?
+  documentVaultUrl   String?
+  financialGoal      String? // RETIREMENT, EDUCATION, CORPUS
+  goalTargetAmount   Float?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+// 10. Natural Resource Management
+model NaturalResourceExtension {
+  id                      String    @id @default(uuid())
+  assetId                 String    @unique
+  resourceType            String?   // FOREST, WATERSHED, AGRICULTURAL, MARINE, CARBON_CREDITS
+  carbonCredits           Float     @default(0)
+  registryId              String?   // voluntary carbon market registry
+  vintageYear             Int?
+  creditPricePerTon       Float?
+  ecosystemService        String?   // CARBON_SEQUESTRATION, WATER_YIELD, BIODIVERSITY
+  ecosystemValuation      Float?
+  complianceClearance     String?   // PCB, FOREST_CLEARANCE, etc.
+  clearanceExpiry         DateTime?
+  degradationIndex        Float?    // 0-100
+  lastFieldSurveyDate     DateTime?
+  nextAssessmentDate      DateTime?
+  ndviScore               Float?    // Normalized Difference Vegetation Index
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
 }

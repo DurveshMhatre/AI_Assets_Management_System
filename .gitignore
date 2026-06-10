@@ -43,3 +43,8 @@ Thumbs.db
 ## Build / cache
 coverage/
 .cache/
+
+#Ignore Folder
+/New Major Changes
+
+Available Data from Temghar Unit.xlsx

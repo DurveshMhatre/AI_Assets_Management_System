@@ -18,13 +18,13 @@ const uploadsDir = path.join(__dirname, '../../uploads');
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadsDir),
-    filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+    destination: (_req: any, _file: any, cb: any) => cb(null, uploadsDir),
+    filename: (_req: any, file: any, cb: any) => cb(null, `${Date.now()}-${file.originalname}`)
 });
 const upload = multer({
     storage,
     limits: { fileSize: 50 * 1024 * 1024 },
-    fileFilter: (_req, file, cb) => {
+    fileFilter: (_req: any, file: any, cb: any) => {
         const ext = path.extname(file.originalname).toLowerCase();
         if (['.xlsx', '.csv', '.xls'].includes(ext)) cb(null, true);
         else cb(new Error('Only .xlsx, .csv files are allowed'));
@@ -370,7 +370,7 @@ router.post('/feedback', authenticate, async (req: AuthRequest, res: Response) =
             return res.status(400).json({ success: false, error: 'Mappings array is required' });
         }
 
-        const results = [];
+        const results: any[] = [];
         for (const mapping of mappings) {
             const { excelHeader, systemField, wasCorrect, confidenceScore } = mapping;
             if (!excelHeader || !systemField) continue;
@@ -819,7 +819,7 @@ router.get('/:jobId/errors', authenticate, async (req: AuthRequest, res: Respons
 });
 
 // ── GET /download — Download template ────────────────────────────────────────
-router.get('/download', async (_req, res: Response) => {
+router.get('/download', async (_req: any, res: Response) => {
     try {
         const workbook = new ExcelJS.Workbook();
         const ws = workbook.addWorksheet('Asset Import Template');
