@@ -133,6 +133,7 @@ router.get('/', checkPermission(PERMISSIONS.VIEW_ASSETS), async (req: AuthReques
         const branchId = req.query.branchId as string;
         const brandId = req.query.brandId as string;
         const assetTypeId = req.query.assetTypeId as string;
+        const tenderId = req.query.tenderId as string;
         const sortBy = (req.query.sortBy as string) || 'createdAt';
         const sortOrder = (req.query.sortOrder as string) || 'desc';
 
@@ -149,6 +150,7 @@ router.get('/', checkPermission(PERMISSIONS.VIEW_ASSETS), async (req: AuthReques
         if (branchId) where.branchId = branchId;
         if (brandId) where.brandId = brandId;
         if (assetTypeId) where.assetTypeId = assetTypeId;
+        if (tenderId) where.tenderId = tenderId;
 
         const [assets, total] = await Promise.all([
             prisma.asset.findMany({
@@ -159,6 +161,7 @@ router.get('/', checkPermission(PERMISSIONS.VIEW_ASSETS), async (req: AuthReques
                     supplier: { select: { id: true, companyName: true } },
                     assetType: { select: { id: true, name: true } },
                     assignedTo: { select: { id: true, name: true } },
+                    tender: { select: { id: true, tenderNumber: true, tenderName: true } },
                 },
                 skip: (page - 1) * limit,
                 take: limit,
@@ -232,6 +235,7 @@ router.post('/', checkPermission(PERMISSIONS.EDIT_ASSETS), async (req: AuthReque
                 assetTypeId: data.assetTypeId || null,
                 organizationId: orgId,
                 assignedToUserId: data.assignedToUserId || null,
+                tenderId: data.tenderId || null,
                 photoUrl: data.photoUrl,
                 companyPolicyNotes: data.companyPolicyNotes,
                 quantity: parseInt(data.quantity) || 1,
@@ -273,6 +277,7 @@ router.put('/:id', checkPermission(PERMISSIONS.EDIT_ASSETS), async (req: AuthReq
         if (data.supplierId !== undefined) updateData.supplierId = data.supplierId || null;
         if (data.assetTypeId !== undefined) updateData.assetTypeId = data.assetTypeId || null;
         if (data.assignedToUserId !== undefined) updateData.assignedToUserId = data.assignedToUserId || null;
+        if (data.tenderId !== undefined) updateData.tenderId = data.tenderId || null;
         if (data.photoUrl !== undefined) updateData.photoUrl = data.photoUrl;
         if (data.companyPolicyNotes !== undefined) updateData.companyPolicyNotes = data.companyPolicyNotes;
         if (data.quantity !== undefined) updateData.quantity = parseInt(data.quantity);

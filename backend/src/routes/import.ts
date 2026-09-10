@@ -65,6 +65,10 @@ const FIELD_DICTIONARY: Record<string, FieldConfig> = {
     depMethod:    { keywords: ['depreciation method', 'dep method', 'method'], priority: 4, required: false, narrowVision: false },
     assignedTo:   { keywords: ['assigned to', 'employee', 'owner', 'user', 'in charge'], priority: 3, required: false, narrowVision: false },
     companyPolicy:{ keywords: ['company policy', 'policy', 'policy notes'], priority: 4, required: false, narrowVision: false },
+    tenderNumber:    { keywords: ['tender number', 'tender no', 'tender ref', 'tender'], priority: 2, required: false, narrowVision: false },
+    tenderName:      { keywords: ['tender name', 'name of work', 'work name', 'project name'], priority: 3, required: false, narrowVision: false },
+    tenderType:      { keywords: ['tender type', 'procurement mode', 'tender category'], priority: 3, required: false, narrowVision: false },
+    finalBillValue:  { keywords: ['final bill value', 'final bill', 'bill value', 'total bill'], priority: 2, required: false, narrowVision: false, dataType: 'currency' },
 };
 
 const REQUIRED_FIELDS = Object.entries(FIELD_DICTIONARY).filter(([, v]) => v.required).map(([k]) => k);
@@ -98,21 +102,16 @@ interface SmartMappingResult {
  * Get org-pattern boost for a given header→field combination.
  * Returns 0–0.15 boost based on org's history.
  */
-async function getOrgPatternBoost(orgId: string, normalizedHeader: string, systemField: string): Promise<number> {
-    try {
-        const pattern = await prisma.orgMappingPattern.findFirst({
-            where: {
-                organizationId: orgId,
-                excelHeaderNormalized: normalizedHeader,
-                systemField,
-            },
-            orderBy: [{ successRate: 'desc' }, { usageCount: 'desc' }],
+function getOrgPatternBoost(patterns: any[], normalizedHeader: string, systemField: string): number {
+    const matches = patterns.filter(p => p.excelHeaderNormalized === normalizedHeader && p.systemField === systemField);
+    if (matches.length > 0) {
+        matches.sort((a, b) => {
+            if (b.successRate !== a.successRate) {
+                return b.successRate - a.successRate;
+            }
+            return b.usageCount - a.usageCount;
         });
-        if (pattern) {
-            return pattern.successRate * 0.15; // Max 15% boost
-        }
-    } catch (error) {
-        console.error('Error fetching org patterns:', error);
+        return matches[0].successRate * 0.15; // Max 15% boost
     }
     return 0;
 }
@@ -120,9 +119,9 @@ async function getOrgPatternBoost(orgId: string, normalizedHeader: string, syste
 /**
  * Context-aware similarity calculation with multiple factors.
  */
-async function calculateSimilarity(
-    excelHeader: string, systemField: string, orgId: string | null
-): Promise<number> {
+function calculateSimilarity(
+    excelHeader: string, systemField: string, orgId: string | null, orgPatterns: any[]
+): number {
     const fieldConfig = FIELD_DICTIONARY[systemField];
     if (!fieldConfig) return 0;
 
@@ -150,8 +149,8 @@ async function calculateSimilarity(
     }
 
     // Factor 3: Organization pattern boost (learned mappings)
-    if (orgId) {
-        const orgBoost = await getOrgPatternBoost(orgId, normalizedExcel, systemField);
+    if (orgId && orgPatterns && orgPatterns.length > 0) {
+        const orgBoost = getOrgPatternBoost(orgPatterns, normalizedExcel, systemField);
         baseScore = Math.min(1.0, baseScore + orgBoost);
     }
 
@@ -181,6 +180,11 @@ async function generateSmartMappingV2(
     const usedHeaders = new Set<string>();
     const confidenceScores: number[] = [];
 
+    // Fetch org patterns once
+    const orgPatterns = orgId
+        ? await prisma.orgMappingPattern.findMany({ where: { organizationId: orgId } })
+        : [];
+
     // Process each system field in priority order
     const sortedFields = Object.entries(FIELD_DICTIONARY)
         .sort((a, b) => a[1].priority - b[1].priority);
@@ -192,7 +196,7 @@ async function generateSmartMappingV2(
         for (const header of excelHeaders) {
             if (usedHeaders.has(header)) continue;
 
-            const score = await calculateSimilarity(header, systemField, orgId);
+            const score = calculateSimilarity(header, systemField, orgId, orgPatterns);
 
             const effectiveThreshold = (strictMode && config.narrowVision)
                 ? Math.max(minConfidence, 0.7)
@@ -524,7 +528,20 @@ router.post('/upload', authenticate, checkPermission(PERMISSIONS.IMPORT_DATA), u
                 const idx = getFieldIndex(field);
                 if (idx === -1) return '';
                 const cell = row.getCell(idx + 1);
-                return String(cell.value || '').trim();
+                const val = cell.value;
+                if (val !== null && typeof val === 'object') {
+                    if ('result' in (val as any)) return String((val as any).result).trim(); // Formula
+                    if ('text' in (val as any)) return String((val as any).text).trim(); // Rich Text or Hyperlink
+                }
+                return String(val || '').trim();
+            };
+
+            const getNumberValue = (field: string): number => {
+                const val = getCellValue(field);
+                if (!val) return 0;
+                // Remove spaces, commas, and currency symbols
+                const parsed = parseFloat(val.replace(/[^\d.-]/g, ''));
+                return isNaN(parsed) ? 0 : parsed;
             };
 
             try {
@@ -580,6 +597,17 @@ router.post('/upload', authenticate, checkPermission(PERMISSIONS.IMPORT_DATA), u
                             }
                         });
                         suppliersCreated++;
+                    } else {
+                        // Bug 6a fix: Update missing fields on existing supplier
+                        const updates: any = {};
+                        if (!supplier.email && getCellValue('supplierEmail')) updates.email = getCellValue('supplierEmail');
+                        if (!supplier.phone && getCellValue('supplierPhone')) updates.phone = getCellValue('supplierPhone');
+                        if (!supplier.address && getCellValue('supplierAddress')) updates.address = getCellValue('supplierAddress');
+                        if (!supplier.city && getCellValue('city')) updates.city = getCellValue('city');
+                        if (!supplier.pincode && getCellValue('pincode')) updates.pincode = getCellValue('pincode');
+                        if (Object.keys(updates).length > 0) {
+                            await prisma.supplier.update({ where: { id: supplier.id }, data: updates });
+                        }
                     }
                     supplierId = supplier.id;
                 }
@@ -603,17 +631,20 @@ router.post('/upload', authenticate, checkPermission(PERMISSIONS.IMPORT_DATA), u
                     // Fetch all types once and match in JS (SQLite doesn't support mode:'insensitive')
                     const allTypes = await prisma.assetType.findMany({ where: { organizationId: orgId } });
 
-                    // First try case-insensitive exact match
+                    // Bug 6c fix: Normalize & → and before comparison
+                    const normalizeTypeName = (s: string) => s.toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ').trim();
+
+                    // First try case-insensitive exact match (with & normalization)
                     let atype = allTypes.find(t =>
-                        t.name.toLowerCase() === typeName.toLowerCase()
+                        normalizeTypeName(t.name) === normalizeTypeName(typeName)
                     ) || null;
 
                     // If no exact match, try fuzzy matching (handles "office Equipment" → "Office Equipments")
                     if (!atype) {
                         atype = allTypes.find(t =>
-                            t.name.toLowerCase().replace(/s$/, '') === typeName.toLowerCase().replace(/s$/, '') ||
-                            t.name.toLowerCase().includes(typeName.toLowerCase()) ||
-                            typeName.toLowerCase().includes(t.name.toLowerCase())
+                            normalizeTypeName(t.name).replace(/s$/, '') === normalizeTypeName(typeName).replace(/s$/, '') ||
+                            normalizeTypeName(t.name).includes(normalizeTypeName(typeName)) ||
+                            normalizeTypeName(typeName).includes(normalizeTypeName(t.name))
                         ) || null;
                     }
 
@@ -621,7 +652,7 @@ router.post('/upload', authenticate, checkPermission(PERMISSIONS.IMPORT_DATA), u
                     if (!atype) {
                         const depMethodVal = getCellValue('depMethod') || 'STRAIGHT_LINE';
                         const usefulLife = parseInt(getCellValue('usefulLife')) || 5;
-                        const salvagePercent = parseFloat(getCellValue('salvageValue')) || 10;
+                        const salvagePercent = getNumberValue('salvageValue') || 10;
                         const prefix = generateCodePrefix(typeName);
                         atype = await prisma.assetType.create({
                             data: {
@@ -640,7 +671,7 @@ router.post('/upload', authenticate, checkPermission(PERMISSIONS.IMPORT_DATA), u
                 }
 
                 // Create Asset (Fix 4: use type-specific prefix for asset code)
-                const purchasePrice = parseFloat(getCellValue('purchasePrice')) || 0;
+                const purchasePrice = getNumberValue('purchasePrice') || 0;
                 let assetCodePrefix = 'AST';
                 if (assetTypeId) {
                     const atypeForPrefix = await prisma.assetType.findUnique({ where: { id: assetTypeId } });
@@ -648,6 +679,66 @@ router.post('/upload', authenticate, checkPermission(PERMISSIONS.IMPORT_DATA), u
                 }
                 const typeCount = await prisma.asset.count({ where: { organizationId: orgId, assetTypeId: assetTypeId || undefined } });
                 const assetCode = `${assetCodePrefix}-${String(typeCount + 1).padStart(5, '0')}`;
+
+                // FindOrCreate Tender (Phase 4)
+                let tenderId: string | null = null;
+                const tenderNumberVal = getCellValue('tenderNumber');
+                if (tenderNumberVal) {
+                    const tenderNumberLower = tenderNumberVal.trim().toLowerCase();
+                    const currentFinalBillValue = getNumberValue('finalBillValue');
+                    
+                    let tender = await prisma.tender.findUnique({
+                        where: { organizationId_tenderNumberLower: { organizationId: orgId, tenderNumberLower } }
+                    });
+                    if (!tender) {
+                        // FindOrCreate TenderType if provided
+                        let tenderTypeId: string | null = null;
+                        const tenderTypeName = getCellValue('tenderType');
+                        if (tenderTypeName) {
+                            const ttNameLower = tenderTypeName.trim().toLowerCase();
+                            let ttype = await prisma.tenderType.findUnique({
+                                where: { organizationId_nameLower: { organizationId: orgId, nameLower: ttNameLower } }
+                            });
+                            if (!ttype) {
+                                ttype = await prisma.tenderType.create({
+                                    data: { name: tenderTypeName.trim(), nameLower: ttNameLower, organizationId: orgId }
+                                });
+                            }
+                            tenderTypeId = ttype.id;
+                        }
+
+                        tender = await prisma.tender.create({
+                            data: {
+                                tenderNumber: tenderNumberVal.trim(),
+                                tenderNumberLower,
+                                tenderName: getCellValue('tenderName') || tenderNumberVal.trim(),
+                                tenderTypeId,
+                                finalBillValue: currentFinalBillValue,
+                                organizationId: orgId,
+                            }
+                        });
+                    } else if (tender.finalBillValue === 0 && currentFinalBillValue > 0) {
+                        // Update existing tender if it was missing the final bill value
+                        tender = await prisma.tender.update({
+                            where: { id: tender.id },
+                            data: { finalBillValue: currentFinalBillValue }
+                        });
+                    }
+                    tenderId = tender.id;
+                }
+
+                // Bug 6b fix: Resolve assignedTo user by name
+                let assignedToUserId: string | null = null;
+                const assignedToName = getCellValue('assignedTo');
+                if (assignedToName) {
+                    const user = await prisma.user.findFirst({
+                        where: {
+                            name: { contains: assignedToName },
+                            organizationId: orgId
+                        }
+                    });
+                    if (user) assignedToUserId = user.id;
+                }
 
                 const asset = await prisma.asset.create({
                     data: {
@@ -672,6 +763,8 @@ router.post('/upload', authenticate, checkPermission(PERMISSIONS.IMPORT_DATA), u
                         supplierId,
                         assetTypeId,
                         organizationId: orgId,
+                        assignedToUserId,
+                        tenderId,
                         companyPolicyNotes: getCellValue('companyPolicy') || null,
                         quantity: parseInt(getCellValue('quantity')) || 1,
                     }

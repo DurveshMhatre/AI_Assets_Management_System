@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Filter, Download, Package, Grid3X3, List, ChevronDown, X, Pencil, Trash2, ChevronDown as SmallChevronDown } from 'lucide-react';
+import { Plus, Search, Filter, Download, Package, Grid3X3, List, ChevronDown, X, Pencil, Trash2, ChevronDown as SmallChevronDown, Gavel, IndianRupee, FileText } from 'lucide-react';
 import api from '../../api/client';
 import type { Asset } from '../../types';
 import toast from 'react-hot-toast';
@@ -26,6 +26,11 @@ export default function AssetList() {
     const [editing, setEditing] = useState<Asset | null>(null);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [showExportMenu, setShowExportMenu] = useState(false);
+    // Tender dropdown state
+    const [selectedTender, setSelectedTender] = useState<any>(null);
+    const [tenderSearch, setTenderSearch] = useState('');
+    const [showTenderDropdown, setShowTenderDropdown] = useState(false);
+    const tenderDropdownRef = useRef<HTMLDivElement>(null);
     const [form, setForm] = useState({
         name: '',
         description: '',
@@ -39,13 +44,44 @@ export default function AssetList() {
         supplierId: '',
         assetTypeId: '',
         assignedToUserId: '',
-        location: ''
+        location: '',
+        tenderId: ''
     });
 
     const { data, isLoading } = useQuery({
-        queryKey: ['assets', page, search, statusFilter],
-        queryFn: () => api.get('/assets', { params: { page, limit: 20, search, status: statusFilter || undefined } }).then(r => r.data)
+        queryKey: ['assets', page, search, statusFilter, selectedTender?.id],
+        queryFn: () => api.get('/assets', {
+            params: {
+                page, limit: 20,
+                search, status: statusFilter || undefined,
+                tenderId: selectedTender?.id || undefined
+            }
+        }).then(r => r.data)
     });
+
+    // Tender list query
+    const { data: tendersData } = useQuery({
+        queryKey: ['tenders', tenderSearch],
+        queryFn: () => api.get('/tenders', { params: { search: tenderSearch || undefined, limit: 50 } }).then(r => r.data.data),
+    });
+
+    // Selected tender detail (for header card)
+    const { data: tenderDetail } = useQuery({
+        queryKey: ['tender-detail', selectedTender?.id],
+        queryFn: () => api.get(`/tenders/${selectedTender!.id}`).then(r => r.data.data),
+        enabled: !!selectedTender?.id,
+    });
+
+    // Close tender dropdown on outside click
+    useEffect(() => {
+        function handleClickOutside(e: MouseEvent) {
+            if (tenderDropdownRef.current && !tenderDropdownRef.current.contains(e.target as Node)) {
+                setShowTenderDropdown(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const { data: brandsData } = useQuery({
         queryKey: ['brands'],
@@ -84,7 +120,8 @@ export default function AssetList() {
             supplierId: '',
             assetTypeId: '',
             assignedToUserId: '',
-            location: ''
+            location: '',
+            tenderId: ''
         });
         setEditing(null);
     };
@@ -104,6 +141,7 @@ export default function AssetList() {
                 supplierId: form.supplierId || undefined,
                 assetTypeId: form.assetTypeId || undefined,
                 assignedToUserId: form.assignedToUserId || undefined,
+                tenderId: form.tenderId || undefined,
                 location: form.location || undefined
             };
             if (editing) {
@@ -146,7 +184,8 @@ export default function AssetList() {
             supplierId: asset.supplierId || '',
             assetTypeId: asset.assetTypeId || '',
             assignedToUserId: asset.assignedToUserId || '',
-            location: asset.location || ''
+            location: asset.location || '',
+            tenderId: asset.tenderId || ''
         });
         setShowForm(true);
     };
@@ -240,10 +279,129 @@ export default function AssetList() {
 
     return (
         <div className="space-y-5 animate-fade-in">
+            {/* PRIMARY FILTER: Tender Dropdown */}
+            <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-4 shadow-lg" ref={tenderDropdownRef}>
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/30">
+                        <Gavel className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1 relative">
+                        <label className="text-xs text-slate-400 font-medium mb-1 block">Select Tender</label>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Search by tender number or name..."
+                                value={showTenderDropdown ? tenderSearch : (selectedTender ? `${selectedTender.tenderNumber} — ${selectedTender.tenderName}` : '')}
+                                onChange={(e) => { setTenderSearch(e.target.value); setShowTenderDropdown(true); }}
+                                onFocus={() => { setShowTenderDropdown(true); if (selectedTender) setTenderSearch(''); }}
+                                className="w-full pl-4 pr-10 py-2.5 bg-white/10 border border-white/20 rounded-xl text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:bg-white/15"
+                            />
+                            {selectedTender && (
+                                <button
+                                    onClick={() => { setSelectedTender(null); setTenderSearch(''); setPage(1); }}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-white/20 text-slate-400 hover:text-white"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            )}
+                            {!selectedTender && (
+                                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            )}
+                        </div>
+                        {/* Dropdown results */}
+                        {showTenderDropdown && (
+                            <div className="absolute z-50 mt-1 w-full bg-white rounded-xl shadow-2xl border border-slate-200 max-h-72 overflow-y-auto">
+                                {(tendersData || []).length === 0 ? (
+                                    <div className="px-4 py-6 text-center text-sm text-slate-400">
+                                        {tenderSearch ? 'No tenders found' : 'No tenders available'}
+                                    </div>
+                                ) : (
+                                    (tendersData || []).map((t: any) => (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => {
+                                                setSelectedTender(t);
+                                                setShowTenderDropdown(false);
+                                                setTenderSearch('');
+                                                setPage(1);
+                                            }}
+                                            className={`w-full text-left px-4 py-3 hover:bg-indigo-50 transition-colors border-b border-slate-50 last:border-0 ${
+                                                selectedTender?.id === t.id ? 'bg-indigo-50' : ''
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-sm font-semibold text-slate-800">{t.tenderNumber}</p>
+                                                    <p className="text-xs text-slate-500 truncate max-w-[400px]">{t.tenderName}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2 flex-shrink-0">
+                                                    {t.tenderType && (
+                                                        <span className="px-2 py-0.5 text-xs bg-amber-50 text-amber-700 rounded-full font-medium">
+                                                            {t.tenderType.name}
+                                                        </span>
+                                                    )}
+                                                    <span className="text-xs text-slate-400">{t._count?.assets || 0} assets</span>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Tender Header Card (shown when a tender is selected) */}
+            {selectedTender && tenderDetail && (
+                <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 rounded-2xl p-5 border border-amber-200/60 shadow-sm">
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-900">{tenderDetail.tenderName}</h2>
+                            <p className="text-sm text-slate-600 mt-0.5">
+                                <span className="font-mono font-semibold">{tenderDetail.tenderNumber}</span>
+                                {tenderDetail.financialYear && <span className="ml-2 text-slate-400">• FY {tenderDetail.financialYear}</span>}
+                            </p>
+                        </div>
+                        {tenderDetail.tenderType && (
+                            <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-semibold">
+                                {tenderDetail.tenderType.name}
+                            </span>
+                        )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 mt-4">
+                        <div className="bg-white/80 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                                <IndianRupee className="w-3.5 h-3.5" /> Final Bill Value
+                            </div>
+                            <p className="text-lg font-bold text-slate-900">
+                                ₹{(tenderDetail.finalBillValue || 0).toLocaleString('en-IN')}
+                            </p>
+                        </div>
+                        <div className="bg-white/80 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                                <Package className="w-3.5 h-3.5" /> Total Assets
+                            </div>
+                            <p className="text-lg font-bold text-slate-900">
+                                {tenderDetail.aggregates?.totalAssets || tenderDetail._count?.assets || 0}
+                            </p>
+                        </div>
+                        <div className="bg-white/80 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                                <FileText className="w-3.5 h-3.5" /> Total Purchase Value
+                            </div>
+                            <p className="text-lg font-bold text-slate-900">
+                                ₹{(tenderDetail.aggregates?.totalPurchaseValue || 0).toLocaleString('en-IN')}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900">Assets</h1>
-                    <p className="text-slate-500 text-sm">{pagination?.total || 0} assets in total</p>
+                    <p className="text-slate-500 text-sm">{pagination?.total || 0} assets {selectedTender ? 'in this tender' : 'in total'}</p>
                 </div>
                 <button
                     onClick={() => { resetForm(); setShowForm(true); }}
@@ -358,6 +516,7 @@ export default function AssetList() {
                                     </th>
                                     <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Asset</th>
                                     <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Code</th>
+                                    <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tender No.</th>
                                     <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Type</th>
                                     <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Location</th>
                                     <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
@@ -369,7 +528,7 @@ export default function AssetList() {
                                 {isLoading ? (
                                     Array.from({ length: 10 }).map((_, i) => (
                                         <tr key={i}>
-                                            <td colSpan={6} className="px-5 py-4"><div className="h-4 bg-slate-100 rounded animate-pulse"></div></td>
+                                            <td colSpan={9} className="px-5 py-4"><div className="h-4 bg-slate-100 rounded animate-pulse"></div></td>
                                         </tr>
                                     ))
                                 ) : assets.map((asset) => (
@@ -393,6 +552,15 @@ export default function AssetList() {
                                             </div>
                                         </td>
                                         <td className="px-5 py-3.5 text-sm text-slate-600 font-mono cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>{asset.assetCode}</td>
+                                        <td className="px-5 py-3.5 cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>
+                                            {(asset as any).tender ? (
+                                                <span className="px-2 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-medium truncate max-w-[120px] inline-block">
+                                                    {(asset as any).tender.tenderNumber}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-slate-400">—</span>
+                                            )}
+                                        </td>
                                         <td className="px-5 py-3.5 text-sm text-slate-600 cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>{asset.assetType?.name || '—'}</td>
                                         <td className="px-5 py-3.5 cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>
                                             <p className="text-sm font-medium text-slate-700">{(asset as any).branch?.name || (asset as any).location || '—'}</p>
@@ -464,7 +632,12 @@ export default function AssetList() {
                                 </span>
                             </div>
                             <h3 className="text-sm font-semibold text-slate-800 mb-1 truncate">{asset.name}</h3>
-                            <p className="text-xs text-slate-400 mb-3">{asset.assetCode} • {asset.brand?.name || '—'}</p>
+                            <p className="text-xs text-slate-400 mb-1">{asset.assetCode} • {asset.brand?.name || '—'}</p>
+                            {(asset as any).tender && (
+                                <span className="inline-block px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full text-xs font-medium mb-2">
+                                    {(asset as any).tender.tenderNumber}
+                                </span>
+                            )}
                             <div className="flex justify-between items-center text-xs">
                                 <div>
                                     <span className="text-slate-500">{(asset as any).branch?.name || (asset as any).location || '—'}</span>
@@ -560,6 +733,19 @@ export default function AssetList() {
                                         ))}
                                     </select>
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Tender</label>
+                                <select
+                                    value={form.tenderId}
+                                    onChange={e => setForm({ ...form, tenderId: e.target.value })}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                >
+                                    <option value="">No tender</option>
+                                    {(tendersData || []).map((t: any) => (
+                                        <option key={t.id} value={t.id}>{t.tenderNumber} — {t.tenderName}</option>
+                                    ))}
+                                </select>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>

@@ -23,6 +23,7 @@ import UnitReports from './pages/Reports/UnitReports';
 import PendingApprovals from './pages/Approvals/PendingApprovals';
 import Users from './pages/Users/Users';
 import AccessDenied from './pages/AccessDenied';
+import TenderTypes from './pages/TenderTypes/TenderTypes';
 import ExtensionHub from './pages/Extensions/ExtensionHub';
 import InvestmentDashboard from './pages/Extensions/InvestmentDashboard';
 import PhysicalAssetDashboard from './pages/Extensions/PhysicalAssetDashboard';
@@ -95,6 +96,7 @@ export default function App() {
                         <Route path="asset-types" element={<AssetTypes />} />
                         <Route path="brands" element={<Brands />} />
                         <Route path="suppliers" element={<Suppliers />} />
+                        <Route path="tender-types" element={<TenderTypes />} />
                         <Route path="qr-tracker" element={<QRTracker />} />
                         <Route path="unit-reports" element={<PermissionRoute permission="VIEW_REPORTS"><UnitReports /></PermissionRoute>} />
                         <Route path="approvals" element={<PermissionRoute permission="APPROVE_REPORTS"><PendingApprovals /></PermissionRoute>} />

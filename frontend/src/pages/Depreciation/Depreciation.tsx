@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { TrendingDown, DollarSign, Calculator, CheckCircle, Loader2 } from 'lucide-react';
+import { TrendingDown, DollarSign, Calculator, CheckCircle, Loader2, Gavel, Package } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
+import { useState } from 'react';
 
 export default function Depreciation() {
     const queryClient = useQueryClient();
+    const [viewTab, setViewTab] = useState<'assets' | 'tenders'>('assets');
 
     const { data, isLoading } = useQuery({
         queryKey: ['depreciation-summary'],
@@ -22,6 +24,13 @@ export default function Depreciation() {
 
     const summary = data?.summary || {};
     const assets = data?.assets || [];
+
+    // Tender depreciation summary query
+    const { data: tenderDepData, isLoading: tenderDepLoading } = useQuery({
+        queryKey: ['depreciation-tender-summary'],
+        queryFn: () => api.get('/depreciation/tender-summary').then(r => r.data.data),
+        enabled: viewTab === 'tenders',
+    });
 
     return (
         <div className="space-y-6 animate-fade-in">
@@ -53,6 +62,28 @@ export default function Depreciation() {
                 ))}
             </div>
 
+            {/* Tab switcher */}
+            <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+                <button
+                    onClick={() => setViewTab('assets')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        viewTab === 'assets' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                >
+                    <Package className="w-4 h-4 inline mr-1.5" />Asset View
+                </button>
+                <button
+                    onClick={() => setViewTab('tenders')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        viewTab === 'tenders' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                >
+                    <Gavel className="w-4 h-4 inline mr-1.5" />Tender View
+                </button>
+            </div>
+
+            {/* Asset View */}
+            {viewTab === 'assets' && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                 <table className="w-full">
                     <thead>
@@ -96,6 +127,82 @@ export default function Depreciation() {
                     </tbody>
                 </table>
             </div>
+            )}
+
+            {/* Tender View */}
+            {viewTab === 'tenders' && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                <table className="w-full">
+                    <thead>
+                        <tr className="bg-slate-50 border-b">
+                            <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tender</th>
+                            <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Type</th>
+                            <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Final Bill Value</th>
+                            <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Assets</th>
+                            <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Accumulated Dep.</th>
+                            <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Net Book Value</th>
+                            <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Depreciated</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                        {tenderDepLoading ? Array.from({ length: 4 }).map((_, i) => (
+                            <tr key={i}><td colSpan={7} className="px-5 py-4"><div className="h-4 bg-slate-100 rounded animate-pulse"></div></td></tr>
+                        )) : (
+                            <>
+                                {(tenderDepData?.tenders || []).map((t: any) => (
+                                    <tr key={t.id} className="hover:bg-slate-50">
+                                        <td className="px-5 py-3">
+                                            <p className="text-sm font-medium text-slate-800">{t.tenderName}</p>
+                                            <p className="text-xs text-slate-400 font-mono">{t.tenderNumber}</p>
+                                        </td>
+                                        <td className="px-5 py-3">
+                                            {t.tenderType ? (
+                                                <span className="px-2 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-medium">{t.tenderType}</span>
+                                            ) : <span className="text-xs text-slate-400">—</span>}
+                                        </td>
+                                        <td className="px-5 py-3 text-sm text-slate-600 text-right">₹{(t.finalBillValue || 0).toLocaleString('en-IN')}</td>
+                                        <td className="px-5 py-3 text-sm text-slate-600 text-right">{t.totalAssets}</td>
+                                        <td className="px-5 py-3 text-sm text-red-600 text-right">₹{Math.round(t.totalAccumulatedDep).toLocaleString('en-IN')}</td>
+                                        <td className="px-5 py-3 text-sm font-semibold text-slate-800 text-right">₹{Math.round(t.totalCurrentValue).toLocaleString('en-IN')}</td>
+                                        <td className="px-5 py-3 w-36">
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 bg-slate-100 rounded-full h-2">
+                                                    <div className={`h-2 rounded-full ${t.depreciationPercentage >= 90 ? 'bg-red-500' : t.depreciationPercentage >= 50 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                                        style={{ width: `${Math.min(100, t.depreciationPercentage)}%` }}></div>
+                                                </div>
+                                                <span className="text-xs text-slate-500 w-10 text-right">{t.depreciationPercentage}%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {/* Unassigned assets row */}
+                                {tenderDepData?.unassigned && tenderDepData.unassigned.totalAssets > 0 && (
+                                    <tr className="bg-slate-50/50">
+                                        <td className="px-5 py-3">
+                                            <p className="text-sm font-medium text-slate-500 italic">Unassigned Assets</p>
+                                            <p className="text-xs text-slate-400">Assets not linked to any tender</p>
+                                        </td>
+                                        <td className="px-5 py-3"><span className="text-xs text-slate-400">—</span></td>
+                                        <td className="px-5 py-3 text-sm text-slate-500 text-right">—</td>
+                                        <td className="px-5 py-3 text-sm text-slate-500 text-right">{tenderDepData.unassigned.totalAssets}</td>
+                                        <td className="px-5 py-3 text-sm text-red-500 text-right">₹{Math.round(tenderDepData.unassigned.totalAccumulatedDep).toLocaleString('en-IN')}</td>
+                                        <td className="px-5 py-3 text-sm font-semibold text-slate-600 text-right">₹{Math.round(tenderDepData.unassigned.totalCurrentValue).toLocaleString('en-IN')}</td>
+                                        <td className="px-5 py-3 w-36">
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 bg-slate-100 rounded-full h-2">
+                                                    <div className="h-2 rounded-full bg-slate-400" style={{ width: `${Math.min(100, tenderDepData.unassigned.depreciationPercentage)}%` }}></div>
+                                                </div>
+                                                <span className="text-xs text-slate-500 w-10 text-right">{tenderDepData.unassigned.depreciationPercentage}%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+            )}
         </div>
     );
 }

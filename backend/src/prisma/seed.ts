@@ -55,6 +55,7 @@ async function main() {
         'VIEW_SETTINGS', 'EDIT_SETTINGS',
         'IMPORT_DATA', 'MANAGE_QR',
         'VIEW_EXTENSIONS', 'EDIT_EXTENSIONS',
+        'MANAGE_TENDERS', 'MANAGE_TENDER_TYPES',
     ];
 
     const managerPerms = [
@@ -67,6 +68,7 @@ async function main() {
         'VIEW_SETTINGS',
         'IMPORT_DATA', 'MANAGE_QR',
         'VIEW_EXTENSIONS', 'EDIT_EXTENSIONS',
+        'MANAGE_TENDERS', 'MANAGE_TENDER_TYPES',
     ];
 
     const techPerms = [

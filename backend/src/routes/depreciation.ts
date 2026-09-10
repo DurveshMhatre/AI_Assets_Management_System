@@ -270,4 +270,88 @@ router.post('/run-monthly', async (req: AuthRequest, res: Response) => {
     }
 });
 
+// Tender-level depreciation summary (Hybrid Approach)
+router.get('/tender-summary', async (req: AuthRequest, res: Response) => {
+    try {
+        const orgId = req.user!.organizationId;
+
+        const tenders = await prisma.tender.findMany({
+            where: { organizationId: orgId },
+            include: {
+                tenderType: { select: { name: true } },
+                assets: {
+                    include: {
+                        depreciationSchedule: { orderBy: [{ year: 'desc' }, { month: 'desc' }], take: 1 }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        const tenderSummaries = tenders.map(tender => {
+            let totalPurchaseValue = 0;
+            let totalCurrentValue = 0;
+            let totalAccumulatedDep = 0;
+
+            tender.assets.forEach(asset => {
+                totalPurchaseValue += asset.purchasePrice;
+                totalCurrentValue += asset.currentValue;
+                const latestDep = asset.depreciationSchedule[0];
+                if (latestDep) totalAccumulatedDep += latestDep.cumulativeDepreciation;
+            });
+
+            return {
+                id: tender.id,
+                tenderNumber: tender.tenderNumber,
+                tenderName: tender.tenderName,
+                tenderType: tender.tenderType?.name || null,
+                financialYear: tender.financialYear,
+                finalBillValue: tender.finalBillValue,
+                totalAssets: tender.assets.length,
+                totalPurchaseValue,
+                totalCurrentValue,
+                totalAccumulatedDep,
+                depreciationPercentage: totalPurchaseValue > 0
+                    ? parseFloat(((totalAccumulatedDep / totalPurchaseValue) * 100).toFixed(1))
+                    : 0,
+            };
+        });
+
+        // Also compute "unassigned" assets (no tender)
+        const unassignedAssets = await prisma.asset.findMany({
+            where: { organizationId: orgId, tenderId: null },
+            include: {
+                depreciationSchedule: { orderBy: [{ year: 'desc' }, { month: 'desc' }], take: 1 }
+            }
+        });
+
+        let unassignedPurchase = 0, unassignedCurrent = 0, unassignedDep = 0;
+        unassignedAssets.forEach(asset => {
+            unassignedPurchase += asset.purchasePrice;
+            unassignedCurrent += asset.currentValue;
+            const latestDep = asset.depreciationSchedule[0];
+            if (latestDep) unassignedDep += latestDep.cumulativeDepreciation;
+        });
+
+        res.json({
+            success: true,
+            data: {
+                tenders: tenderSummaries,
+                unassigned: {
+                    totalAssets: unassignedAssets.length,
+                    totalPurchaseValue: unassignedPurchase,
+                    totalCurrentValue: unassignedCurrent,
+                    totalAccumulatedDep: unassignedDep,
+                    depreciationPercentage: unassignedPurchase > 0
+                        ? parseFloat(((unassignedDep / unassignedPurchase) * 100).toFixed(1))
+                        : 0,
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Tender depreciation summary error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
 export default router;

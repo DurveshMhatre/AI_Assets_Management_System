@@ -16,6 +16,7 @@ export interface Asset {
     assetTypeId?: string;
     organizationId: string;
     assignedToUserId?: string;
+    tenderId?: string;
     photoUrl?: string;
     quantity: number;
     unit?: string;
@@ -28,6 +29,7 @@ export interface Asset {
     supplier?: { id: string; companyName: string };
     assetType?: { id: string; name: string };
     assignedTo?: { id: string; name: string };
+    tender?: { id: string; tenderNumber: string; tenderName: string };
 }
 
 export interface Brand {

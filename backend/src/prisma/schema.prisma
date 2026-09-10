@@ -54,6 +54,8 @@ model Organization {
   importJobs         ImportJob[]
   mappingFeedbacks   MappingFeedback[]
   orgMappingPatterns OrgMappingPattern[]
+  tenders            Tender[]
+  tenderTypes        TenderType[]
 }
 
 model Branch {
@@ -156,6 +158,7 @@ model Asset {
   assetTypeId        String?
   organizationId     String
   assignedToUserId   String?
+  tenderId           String?
   photoUrl           String?
   userManualUrl      String?
   qrCode             String?
@@ -174,6 +177,7 @@ model Asset {
   assetType            AssetType?            @relation(fields: [assetTypeId], references: [id])
   organization         Organization          @relation(fields: [organizationId], references: [id])
   assignedTo           User?                 @relation("AssignedUser", fields: [assignedToUserId], references: [id])
+  tender               Tender?               @relation(fields: [tenderId], references: [id])
   depreciationSchedule DepreciationSchedule[]
   maintenanceLogs      MaintenanceLog[]
   inventoryRecords     InventoryRecord[]
@@ -451,6 +455,42 @@ model RolePermission {
   role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, permission])
+}
+
+// ─── TENDER MANAGEMENT MODELS ──────────────────────────────────────────
+
+model Tender {
+  id                String   @id @default(uuid())
+  tenderNumber      String
+  tenderNumberLower String   @default("")
+  tenderName        String
+  tenderTypeId      String?
+  finalBillValue    Float    @default(0)
+  financialYear     String?
+  organizationId    String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenderType     TenderType?  @relation(fields: [tenderTypeId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  assets         Asset[]
+
+  @@unique([organizationId, tenderNumberLower])
+}
+
+model TenderType {
+  id              String   @id @default(uuid())
+  name            String
+  nameLower       String   @default("")
+  description     String?
+  organizationId  String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  tenders         Tender[]
+
+  @@unique([organizationId, nameLower])
 }
 
 // ─── DOMAIN EXTENSION MODELS ───────────────────────────────────────────
