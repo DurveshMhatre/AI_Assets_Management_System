@@ -1,9 +1,7 @@
 import { AuthRequest } from './auth';
 import { Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { PermissionKey, PERMISSIONS } from '../constants/permissions';
-
-const prisma = new PrismaClient();
+import prisma from '../prisma/client';
 
 // Legacy hardcoded permission matrix — used as fallback when user has no roleId
 type LegacyPermission = 'view' | 'create' | 'edit' | 'delete' | 'export' | 'execute';

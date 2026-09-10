@@ -1,5 +1,4 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { checkPermission } from '../middleware/permissions';
 import { PERMISSIONS } from '../constants/permissions';
@@ -9,9 +8,9 @@ import fs from 'fs';
 import ExcelJS from 'exceljs';
 import Fuse from 'fuse.js';
 import { generateCodePrefix } from '../utils/assetHelpers';
+import prisma from '../prisma/client';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Ensure uploads directory exists (Render uses ephemeral filesystem)
 const uploadsDir = path.join(__dirname, '../../uploads');

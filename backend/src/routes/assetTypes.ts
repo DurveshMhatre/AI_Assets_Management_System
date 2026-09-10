@@ -1,12 +1,11 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { checkPermission } from '../middleware/permissions';
 import { PERMISSIONS } from '../constants/permissions';
 import { generateCodePrefix } from '../utils/assetHelpers';
+import prisma from '../prisma/client';
 
 const router = Router();
-const prisma = new PrismaClient();
 router.use(authenticate);
 
 // ── Helper: calculate annual depreciation rate ──────────────────────────

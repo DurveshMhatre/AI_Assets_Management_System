@@ -2,9 +2,8 @@
  * One-time migration script: Populate nameLower / companyNameLower for dedup.
  * Run: npx tsx src/prisma/populate_lower_fields.ts
  */
-import { PrismaClient } from '@prisma/client';
+import prisma from './client';
 
-const prisma = new PrismaClient();
 
 async function main() {
     // Populate Brand.nameLower

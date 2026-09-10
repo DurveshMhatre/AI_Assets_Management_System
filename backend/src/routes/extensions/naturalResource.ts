@@ -1,11 +1,10 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../prisma/client';
 import { AuthRequest } from '../../middleware/auth';
 import { checkPermission } from '../../middleware/permissions';
 import { PERMISSIONS } from '../../constants/permissions';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.get('/:assetId', checkPermission(PERMISSIONS.VIEW_EXTENSIONS), async (req: AuthRequest, res: Response) => {
     try {

@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-const p = new PrismaClient();
+import prisma from './client';
+const p = prisma;
 
 async function main() {
     // Check for duplicate brands

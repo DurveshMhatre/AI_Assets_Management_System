@@ -1,12 +1,11 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { checkPermission } from '../middleware/permissions';
 import { PERMISSIONS } from '../constants/permissions';
 import { v4 as uuidv4 } from 'uuid';
+import prisma from '../prisma/client';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // PUBLIC — no auth — used by QR scan (Fix 1B)
 router.get('/public/:id', async (req, res: Response) => {

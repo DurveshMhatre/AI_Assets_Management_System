@@ -1,11 +1,10 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../prisma/client';
 import { AuthRequest } from '../../middleware/auth';
 import { checkPermission } from '../../middleware/permissions';
 import { PERMISSIONS } from '../../constants/permissions';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // GET /api/extensions/investment/:assetId — Get investment extension for an asset
 router.get('/:assetId', checkPermission(PERMISSIONS.VIEW_EXTENSIONS), async (req: AuthRequest, res: Response) => {

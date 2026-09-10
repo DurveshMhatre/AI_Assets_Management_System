@@ -26,6 +26,7 @@ import tenderRoutes from './routes/tenders';
 import tenderTypeRoutes from './routes/tenderTypes';
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 // Middleware - CORS must be BEFORE helmet

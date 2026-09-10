@@ -1,12 +1,11 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../prisma/client';
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth';
 import { checkPermission, clearPermissionCache, getUserPermissions } from '../middleware/permissions';
 import { PERMISSIONS } from '../constants/permissions';
 import bcrypt from 'bcryptjs';
 
 const router = Router();
-const prisma = new PrismaClient();
 router.use(authenticate);
 
 // GET /api/users — List all users (include roleId and role name)

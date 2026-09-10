@@ -1,13 +1,12 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
 import '../config/env';
 import { securityConfig } from '../config/security';
 import { authRateLimiter } from '../middleware/rateLimiter';
+import prisma from '../prisma/client';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Login
 router.post('/login', authRateLimiter, async (req, res: Response) => {

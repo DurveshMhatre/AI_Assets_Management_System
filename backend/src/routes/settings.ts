@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { checkPermission } from '../middleware/permissions';
 import { PERMISSIONS } from '../constants/permissions';
@@ -8,7 +8,6 @@ import path from 'path';
 import fs from 'fs';
 
 const router = Router();
-const prisma = new PrismaClient();
 router.use(authenticate);
 
 // Ensure uploads directory exists (Render uses ephemeral filesystem)
