@@ -4,6 +4,15 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+    console.log('🌱 Checking seed status...');
+
+    // Check if database is already seeded
+    const existingAdmin = await prisma.user.findUnique({ where: { email: 'admin@demo.com' } });
+    if (existingAdmin) {
+        console.log('✅ Database is already seeded. Skipping seed.');
+        return;
+    }
+
     console.log('🌱 Seeding database...');
 
     // 1. Organization
