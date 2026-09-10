@@ -37,7 +37,7 @@ console.log('Allowed CORS origins:', allowedOrigins);
 
 const corsOptions = {
     origin: function(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-        if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+        if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*') || origin.endsWith('.vercel.app')) {
             callback(null, true);
         } else {
             console.log('CORS blocked origin:', origin);

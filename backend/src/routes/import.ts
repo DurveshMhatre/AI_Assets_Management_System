@@ -31,6 +31,31 @@ const upload = multer({
     }
 });
 
+async function loadWorkbook(filePath: string, originalname: string): Promise<ExcelJS.Workbook> {
+    const workbook = new ExcelJS.Workbook();
+    const ext = path.extname(originalname).toLowerCase();
+    if (ext === '.csv') {
+        await workbook.csv.readFile(filePath);
+    } else {
+        await workbook.xlsx.readFile(filePath, { calcProperties: { fullCalcOnLoad: true } } as any);
+    }
+    return workbook;
+}
+
+function extractCellValue(val: any): any {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'object') {
+        if (val instanceof Date) return val.toISOString();
+        if ('result' in val) return val.result !== undefined && val.result !== null ? (typeof val.result === 'object' && val.result instanceof Date ? val.result.toISOString() : String(val.result).trim()) : '';
+        if ('text' in val) return String(val.text).trim();
+        if (Array.isArray(val)) return val.map(extractCellValue).join(', ');
+        if ('richText' in val && Array.isArray(val.richText)) {
+            return val.richText.map((r: any) => r.text || '').join('').trim();
+        }
+    }
+    return val;
+}
+
 // ─── FIELD CONFIGURATION ────────────────────────────────────────────────────────
 
 interface FieldConfig {
@@ -489,9 +514,8 @@ router.post('/upload', authenticate, checkPermission(PERMISSIONS.IMPORT_DATA), u
             }
         });
 
-        // Parse Excel
-        const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.readFile(req.file.path, { calcProperties: { fullCalcOnLoad: true } } as any);
+        // Parse Excel or CSV
+        const workbook = await loadWorkbook(req.file.path, req.file.originalname);
         const worksheet = workbook.worksheets[0];
 
         if (!worksheet || worksheet.rowCount < 2) {
@@ -503,7 +527,8 @@ router.post('/upload', authenticate, checkPermission(PERMISSIONS.IMPORT_DATA), u
         const headerRow = worksheet.getRow(1);
         const headers: string[] = [];
         headerRow.eachCell((cell, colNum) => {
-            headers[colNum - 1] = String(cell.value || '').trim();
+            const val = extractCellValue(cell.value);
+            headers[colNum - 1] = String(val || '').trim();
         });
 
         const columnMap = mapColumns(headers);
@@ -983,69 +1008,96 @@ router.get('/download', async (_req: any, res: Response) => {
 // ── POST /upload-preview — Smart mapping for MappingWizard ───────────────────
 router.post('/upload-preview', authenticate, upload.single('file'), async (req: AuthRequest, res: Response) => {
     try {
-        if (!req.file) return res.status(400).json({ success: false, error: 'No file' });
+        if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
 
-        const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.readFile(req.file.path);
+        const workbook = await loadWorkbook(req.file.path, req.file.originalname);
         const ws = workbook.worksheets[0];
+        if (!ws || ws.rowCount < 1) {
+            return res.status(400).json({ success: false, error: 'The uploaded file is empty or has no sheets' });
+        }
 
         const headers: string[] = [];
-        ws.getRow(1).eachCell({ includeEmpty: false }, (cell, colNum) => {
-            headers[colNum - 1] = String(cell.value || '').trim();
+        const headerRow = ws.getRow(1);
+        headerRow.eachCell({ includeEmpty: false }, (cell, colNum) => {
+            const rawVal = extractCellValue(cell.value);
+            const headerStr = String(rawVal || '').trim();
+            if (headerStr) {
+                headers[colNum - 1] = headerStr;
+            }
         });
 
+        // Filter out empty slots in sparse array if any
+        const cleanHeaders = headers.map(h => h || 'Unnamed Column');
+        if (cleanHeaders.length === 0) {
+            return res.status(400).json({ success: false, error: 'No headers found in the first row' });
+        }
+
         const previewRows: any[] = [];
-        for (let r = 2; r <= Math.min(4, ws.rowCount); r++) {
+        for (let r = 2; r <= Math.min(6, ws.rowCount); r++) {
             const row = ws.getRow(r);
             const rowData: Record<string, any> = {};
-            row.eachCell({ includeEmpty: true }, (cell, colNum) => {
-                if (headers[colNum - 1]) rowData[headers[colNum - 1]] = cell.value;
+            let hasAnyVal = false;
+            cleanHeaders.forEach((h, idx) => {
+                const rawVal = extractCellValue(row.getCell(idx + 1).value);
+                rowData[h] = rawVal;
+                if (rawVal !== '' && rawVal !== null && rawVal !== undefined) hasAnyVal = true;
             });
-            previewRows.push(rowData);
+            if (hasAnyVal) {
+                previewRows.push(rowData);
+            }
         }
 
         // Use intelligent V2 mapping with org patterns
-        const orgId = req.user!.organizationId;
-        const mapping = await generateSmartMappingV2(headers, orgId);
+        const orgId = req.user?.organizationId || null;
+        const mapping = await generateSmartMappingV2(cleanHeaders, orgId);
 
         res.json({
             success: true,
             data: {
                 filePath: req.file.path,
                 fileName: req.file.originalname,
-                totalRows: ws.rowCount - 1,
-                headers,
+                totalRows: Math.max(0, ws.rowCount - 1),
+                headers: cleanHeaders,
                 previewRows,
                 mapping,
             }
         });
-    } catch (error) {
-        res.status(500).json({ success: false, error: 'Preview failed' });
+    } catch (error: any) {
+        console.error('Preview failed detailed error:', error);
+        res.status(500).json({ success: false, error: 'Preview failed: ' + (error?.message || error) });
     }
 });
 
 // ── POST /preview — Column mapping preview ───────────────────────────────────
 router.post('/preview', authenticate, upload.single('file'), async (req: AuthRequest, res: Response) => {
     try {
-        if (!req.file) return res.status(400).json({ success: false, error: 'No file' });
+        if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
 
-        const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.readFile(req.file.path);
+        const workbook = await loadWorkbook(req.file.path, req.file.originalname);
         const ws = workbook.worksheets[0];
+        if (!ws || ws.rowCount < 1) {
+            return res.status(400).json({ success: false, error: 'The uploaded file is empty or has no sheets' });
+        }
 
         const headers: string[] = [];
-        ws.getRow(1).eachCell((cell, colNum) => {
-            headers[colNum - 1] = String(cell.value || '').trim();
+        const headerRow = ws.getRow(1);
+        headerRow.eachCell((cell, colNum) => {
+            const rawVal = extractCellValue(cell.value);
+            const headerStr = String(rawVal || '').trim();
+            if (headerStr) {
+                headers[colNum - 1] = headerStr;
+            }
         });
 
-        const columnMap = mapColumns(headers);
+        const cleanHeaders = headers.map(h => h || 'Unnamed Column');
+        const columnMap = mapColumns(cleanHeaders);
 
         const previewRows: any[] = [];
         for (let i = 2; i <= Math.min(6, ws.rowCount); i++) {
             const row = ws.getRow(i);
             const rowData: Record<string, any> = {};
-            headers.forEach((h, idx) => {
-                rowData[h] = String(row.getCell(idx + 1).value || '');
+            cleanHeaders.forEach((h, idx) => {
+                rowData[h] = String(extractCellValue(row.getCell(idx + 1).value) || '');
             });
             previewRows.push(rowData);
         }
@@ -1053,15 +1105,16 @@ router.post('/preview', authenticate, upload.single('file'), async (req: AuthReq
         res.json({
             success: true,
             data: {
-                headers,
+                headers: cleanHeaders,
                 columnMap,
                 previewRows,
-                totalRows: ws.rowCount - 1,
+                totalRows: Math.max(0, ws.rowCount - 1),
                 availableFields: columnMappings.map(m => ({ field: m.field, label: m.aliases[0] }))
             }
         });
-    } catch (error) {
-        res.status(500).json({ success: false, error: 'Preview failed' });
+    } catch (error: any) {
+        console.error('Preview column mapping failed:', error);
+        res.status(500).json({ success: false, error: 'Preview failed: ' + (error?.message || error) });
     }
 });
 
