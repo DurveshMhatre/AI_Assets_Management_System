@@ -1,0 +1,22 @@
+name: Keep Backend and Database Alive
+
+on:
+  schedule:
+    # Runs every 14 minutes (Render sleeps after 15m; Supabase pauses after 7 days)
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Allows manual trigger anytime from GitHub Actions tab
+
+jobs:
+  ping-health:
+    name: Ping Render & Supabase Health
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send keep-alive ping
+        run: |
+          echo "Pinging AMS backend health check..."
+          HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" https://ai-assets-management-system.onrender.com/api/health)
+          echo "HTTP Response Status: $HTTP_STATUS"
+          cat response.json || true
+          if [ "$HTTP_STATUS" -eq 200 ] || [ "$HTTP_STATUS" -eq 503 ]; then
+            echo "Ping completed successfully."
+          fi

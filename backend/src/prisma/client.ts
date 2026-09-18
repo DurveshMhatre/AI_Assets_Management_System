@@ -7,9 +7,20 @@ function getDatasourceUrl(): string | undefined {
     if (!url) return undefined;
     // Strip accidental quotes or spaces
     url = url.replace(/^["']|["']$/g, '').trim();
-    if (!url.includes('connection_limit=')) {
-        url += (url.includes('?') ? '&' : '?') + 'connection_limit=5';
+
+    // Supabase transaction pooler (port 6543) requires pgbouncer=true for Prisma
+    if (url.includes(':6543') && !url.includes('pgbouncer=true')) {
+        url += (url.includes('?') ? '&' : '?') + 'pgbouncer=true';
     }
+
+    if (!url.includes('connection_limit=')) {
+        url += (url.includes('?') ? '&' : '?') + 'connection_limit=10';
+    }
+
+    if (!url.includes('pool_timeout=')) {
+        url += (url.includes('?') ? '&' : '?') + 'pool_timeout=20';
+    }
+
     return url;
 }
 

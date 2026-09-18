@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
@@ -10,8 +10,35 @@ export default function Login() {
     const [password, setPassword] = useState('Admin@123');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [isWarmingUp, setIsWarmingUp] = useState(false);
+    const [serverReady, setServerReady] = useState(false);
     const { login } = useAuthStore();
     const navigate = useNavigate();
+
+    // Pre-warm backend and database as soon as login page loads
+    useEffect(() => {
+        const warmTimer = setTimeout(() => {
+            setIsWarmingUp(true);
+        }, 1200);
+
+        api.get('/health')
+            .then((res) => {
+                clearTimeout(warmTimer);
+                setIsWarmingUp(false);
+                setServerReady(true);
+                if (res.data?.database === 'disconnected') {
+                    toast.error('Database connection is down. Please verify database status in Supabase.', {
+                        id: 'db-status',
+                        duration: 8000
+                    });
+                }
+            })
+            .catch(() => {
+                setIsWarmingUp(true);
+            });
+
+        return () => clearTimeout(warmTimer);
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -23,7 +50,14 @@ export default function Login() {
             toast.success(`Welcome back, ${user.name}!`);
             navigate('/dashboard');
         } catch (err: any) {
-            toast.error(err.response?.data?.error || 'Login failed');
+            const errorMessage = err.response?.data?.error || '';
+            if (err.code === 'ECONNABORTED' || (!err.response && isWarmingUp)) {
+                toast.error('Server is still waking up. Please wait 10-20 seconds and click Sign In again.', { duration: 6000 });
+            } else if (err.response?.status === 503 || errorMessage.toLowerCase().includes('tenant') || errorMessage.toLowerCase().includes('database')) {
+                toast.error('Database is paused or disconnected on Supabase. Please resume the project.', { duration: 8000 });
+            } else {
+                toast.error(errorMessage || 'Login failed. Please check your credentials.');
+            }
         } finally {
             setLoading(false);
         }
@@ -85,6 +119,18 @@ export default function Login() {
                                 </button>
                             </div>
                         </div>
+
+                        {isWarmingUp && !serverReady && (
+                            <div className="p-3.5 bg-amber-500/10 border border-amber-500/25 rounded-xl text-xs text-amber-200 flex items-start gap-2.5">
+                                <Loader2 className="w-4 h-4 animate-spin text-amber-400 shrink-0 mt-0.5" />
+                                <div className="space-y-0.5">
+                                    <span className="font-semibold block text-amber-300">Waking up cloud server...</span>
+                                    <p className="text-slate-300/80 leading-relaxed text-[11px]">
+                                        Render free-tier server is spinning up after inactivity (~30-45 seconds). Please wait a moment.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
                         <button
                             type="submit"

@@ -124,12 +124,25 @@ export async function getUserPermissions(userId: string, role: string, roleId?: 
     let permissions: string[] = [];
 
     if (roleId) {
-        // DB-backed: fetch from RolePermission table
-        const rolePerms = await prisma.rolePermission.findMany({
-            where: { roleId },
-            select: { permission: true },
-        });
-        permissions = rolePerms.map(rp => rp.permission);
+        try {
+            // DB-backed: fetch from RolePermission table
+            const rolePerms = await prisma.rolePermission.findMany({
+                where: { roleId },
+                select: { permission: true },
+            });
+            permissions = rolePerms.map(rp => rp.permission);
+        } catch (error) {
+            console.warn('[Permissions] DB query failed, falling back to legacy permission matrix:', error);
+            const roleMatrix = legacyPermissionMatrix[role];
+            if (roleMatrix) {
+                for (const [permKey, mapping] of Object.entries(permissionToLegacy)) {
+                    const featurePerms = roleMatrix[mapping.feature];
+                    if (featurePerms && mapping.permissions.some(p => featurePerms.includes(p))) {
+                        permissions.push(permKey);
+                    }
+                }
+            }
+        }
     } else {
         // Legacy fallback: convert hardcoded matrix to permission keys
         const roleMatrix = legacyPermissionMatrix[role];
@@ -154,20 +167,25 @@ export async function getUserPermissions(userId: string, role: string, roleId?: 
  */
 export const checkPermission = (permission: PermissionKey) => {
     return async (req: AuthRequest, res: Response, next: NextFunction) => {
-        if (!req.user) {
-            return res.status(401).json({ success: false, error: 'Authentication required' });
+        try {
+            if (!req.user) {
+                return res.status(401).json({ success: false, error: 'Authentication required' });
+            }
+
+            const userPerms = await getUserPermissions(req.user.id, req.user.role, req.user.roleId);
+
+            // Cache permissions on the request object for reuse within the same request
+            (req as any)._permissions = userPerms;
+
+            if (!userPerms.includes(permission)) {
+                return res.status(403).json({ success: false, error: 'Insufficient permissions' });
+            }
+
+            next();
+        } catch (error) {
+            console.error('[Permissions Middleware] Unexpected error:', error);
+            next(error);
         }
-
-        const userPerms = await getUserPermissions(req.user.id, req.user.role, req.user.roleId);
-
-        // Cache permissions on the request object for reuse within the same request
-        (req as any)._permissions = userPerms;
-
-        if (!userPerms.includes(permission)) {
-            return res.status(403).json({ success: false, error: 'Insufficient permissions' });
-        }
-
-        next();
     };
 };
 

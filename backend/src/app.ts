@@ -24,6 +24,7 @@ import unitReportRoutes from './routes/unitReports';
 import extensionRoutes from './routes/extensions';
 import tenderRoutes from './routes/tenders';
 import tenderTypeRoutes from './routes/tenderTypes';
+import prisma from './prisma/client';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -84,10 +85,14 @@ app.use('/api/tenders', tenderRoutes);
 app.use('/api/tender-types', tenderTypeRoutes);
 
 // Health check
-app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/api/health', async (_req, res) => {
+    try {
+        await prisma.$queryRaw`SELECT 1`;
+        res.json({ status: 'ok', database: 'connected', timestamp: new Date().toISOString() });
+    } catch (err: any) {
+        res.status(503).json({ status: 'error', database: 'disconnected', error: err.message });
+    }
 });
-
 // Error handling
 app.use(errorHandler);
 
